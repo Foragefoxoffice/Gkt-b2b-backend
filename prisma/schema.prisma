@@ -1,0 +1,271 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Role {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  users     User[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  email     String    @unique
+  password  String
+  name      String
+  roleId    Int
+  role      Role      @relation(fields: [roleId], references: [id])
+  phone     String?
+  avatar    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model Firm {
+  id          Int       @id @default(autoincrement())
+  name        String
+  address     String?
+  gstNumber   String?
+  panNumber   String?
+  mobile      String?
+  email       String?
+  status      Boolean   @default(true)
+  buyers      Buyer[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model Buyer {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  name        String
+  firmId      Int
+  firm        Firm      @relation(fields: [firmId], references: [id])
+  mobile      String?
+  email       String?
+  gst         String?
+  pan         String?
+  branches    BuyerBranch[]
+  carts       Cart[]
+  orders      Order[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model BuyerBranch {
+  id              Int       @id @default(autoincrement())
+  buyerId         Int
+  buyer           Buyer     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  branchName      String
+  billingAddress  String
+  shippingAddress String
+  city            String
+  state           String
+  pincode         String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+}
+
+model Transporter {
+  id          Int       @id @default(autoincrement())
+  name        String
+  mobile      String?
+  email       String?
+  address     String?
+  orders      Order[]
+  dispatches  Dispatch[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model Weaver {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  name        String
+  loomNumber  String?
+  designs     Design[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model DesignCategory {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  name        String
+  designs     Design[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model Design {
+  id              Int       @id @default(autoincrement())
+  code            String    @unique
+  name            String
+  categoryId      Int
+  category        DesignCategory @relation(fields: [categoryId], references: [id])
+  color           String?
+  rate            Float
+  gstPercent      Float     @default(5.0)
+  availableStock  Int       @default(0)
+  image           String?
+  weaverId        Int?
+  weaver          Weaver?   @relation(fields: [weaverId], references: [id])
+  loomNumber      String?
+  
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  inventoryTxns   InventoryTransaction[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+}
+
+model Cart {
+  id          Int       @id @default(autoincrement())
+  buyerId     Int       @unique
+  buyer       Buyer     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  items       CartItem[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CartItem {
+  id          Int       @id @default(autoincrement())
+  cartId      Int
+  cart        Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  designId    Int
+  design      Design    @relation(fields: [designId], references: [id])
+  quantity    Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Order {
+  id              Int       @id @default(autoincrement())
+  orderNumber     String    @unique
+  buyerId         Int
+  buyer           Buyer     @relation(fields: [buyerId], references: [id])
+  transporterId   Int?
+  transporter     Transporter? @relation(fields: [transporterId], references: [id])
+  orderDate       DateTime  @default(now())
+  gstAmount       Float     @default(0.0)
+  totalAmount     Float     @default(0.0)
+  grandTotal      Float     @default(0.0)
+  remarks         String?
+  status          OrderStatus @default(PENDING)
+  items           OrderItem[]
+  approvals       Approval[]
+  dispatches      Dispatch[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+model OrderItem {
+  id          Int       @id @default(autoincrement())
+  orderId     Int
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  designId    Int
+  design      Design    @relation(fields: [designId], references: [id])
+  quantity    Int
+  rate        Float
+  taxPercent  Float
+  taxAmount   Float
+  lineTotal   Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Approval {
+  id          Int       @id @default(autoincrement())
+  orderId     Int
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  approvedBy  Int 
+  status      String    
+  remarks     String?
+  createdAt   DateTime  @default(now())
+}
+
+model Dispatch {
+  id              Int       @id @default(autoincrement())
+  dispatchNumber  String    @unique
+  orderId         Int
+  order           Order     @relation(fields: [orderId], references: [id])
+  transporterId   Int
+  transporter     Transporter @relation(fields: [transporterId], references: [id])
+  numberOfBundles Int
+  trackingNumber  String?
+  bookingCopy     String?   
+  invoiceCopy     String?   
+  status          DispatchStatus @default(PROCESSING)
+  items           DispatchItem[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+}
+
+enum DispatchStatus {
+  PROCESSING
+  DISPATCHED
+  DELIVERED
+}
+
+model DispatchItem {
+  id          Int       @id @default(autoincrement())
+  dispatchId  Int
+  dispatch    Dispatch  @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  orderItemId Int 
+  quantity    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model InventoryTransaction {
+  id          Int       @id @default(autoincrement())
+  designId    Int
+  design      Design    @relation(fields: [designId], references: [id])
+  type        TxnType   
+  quantity    Int       
+  orderRef    String?   
+  createdAt   DateTime  @default(now())
+}
+
+enum TxnType {
+  ORDER
+  RETURN
+  ADJUSTMENT
+}
+
+model Notification {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  type        String    
+  message     String
+  channel     String    
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+}

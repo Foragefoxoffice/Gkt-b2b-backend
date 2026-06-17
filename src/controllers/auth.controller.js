@@ -1,0 +1,48 @@
+import * as authService from '../services/auth.service.js';
+import { sendResponse } from '../utils/response.js';
+
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return sendResponse(res, 400, false, 'Email and password are required');
+  }
+
+  const result = await authService.login(email, password);
+  
+  // Set refresh token in HTTP-only cookie
+  res.cookie('refreshToken', result.tokens.refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
+
+  return sendResponse(res, 200, true, 'Login successful', {
+    user: result.user,
+    accessToken: result.tokens.accessToken
+  });
+};
+
+export const refreshToken = async (req, res) => {
+  // Try to get token from cookies or body
+  const token = req.cookies?.refreshToken || req.body.refreshToken;
+  
+  const tokens = await authService.refreshToken(token);
+
+  // Set new refresh token
+  res.cookie('refreshToken', tokens.refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  return sendResponse(res, 200, true, 'Token refreshed', {
+    accessToken: tokens.accessToken
+  });
+};
+
+export const logout = (req, res) => {
+  res.clearCookie('refreshToken');
+  return sendResponse(res, 200, true, 'Logged out successfully');
+};
