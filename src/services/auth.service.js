@@ -26,8 +26,90 @@ export const login = async (email, password) => {
     throw { status: 401, message: 'Invalid credentials' };
   }
 
+  // OTP Verification logic for BUYER role
+  if (user.role.name === 'BUYER') {
+    const now = new Date();
+    // Check if lastLoginAt is null or more than 24 hours ago
+    const hoursSinceLastLogin = user.lastLoginAt 
+      ? (now.getTime() - new Date(user.lastLoginAt).getTime()) / (1000 * 60 * 60)
+      : Infinity;
+
+    if (hoursSinceLastLogin >= 24) {
+      // Generate a 6-digit OTP
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpExpiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes from now
+
+      // Save OTP to user
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { otpCode, otpExpiresAt }
+      });
+
+      // Import inside the block to avoid circular dependencies or top-level issues if any
+      const { sendEmailOtp } = await import('./email.service.js');
+      await sendEmailOtp(user.email, otpCode);
+
+      return {
+        requiresOtp: true,
+        user: {
+          id: user.id,
+          email: user.email
+        }
+      };
+    }
+  }
+
+  // Normal login flow (or after OTP verification)
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() }
+  });
+
   const tokens = generateTokens(user, user.role.name);
   
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role.name,
+      avatar: user.avatar,
+    },
+    tokens
+  };
+};
+
+export const verifyOtp = async (userId, otpCode) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { role: true }
+  });
+
+  if (!user || user.deletedAt) {
+    throw { status: 401, message: 'User not found or disabled' };
+  }
+
+  if (!user.otpCode || user.otpCode !== otpCode) {
+    throw { status: 400, message: 'Invalid OTP' };
+  }
+
+  const now = new Date();
+  if (!user.otpExpiresAt || new Date(user.otpExpiresAt) < now) {
+    throw { status: 400, message: 'OTP has expired' };
+  }
+
+  // OTP is valid, clear it and update last login
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { 
+      otpCode: null, 
+      otpExpiresAt: null,
+      lastLoginAt: now 
+    }
+  });
+
+  const tokens = generateTokens(user, user.role.name);
+
   return {
     user: {
       id: user.id,

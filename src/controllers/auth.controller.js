@@ -9,6 +9,10 @@ export const login = async (req, res) => {
 
   const result = await authService.login(email, password);
   
+  if (result.requiresOtp) {
+    return sendResponse(res, 200, true, 'OTP required', result);
+  }
+
   // Set refresh token in HTTP-only cookie
   res.cookie('refreshToken', result.tokens.refreshToken, {
     httpOnly: true,
@@ -18,6 +22,27 @@ export const login = async (req, res) => {
   });
 
   return sendResponse(res, 200, true, 'Login successful', {
+    user: result.user,
+    accessToken: result.tokens.accessToken
+  });
+};
+
+export const verifyOtp = async (req, res) => {
+  const { userId, otp } = req.body;
+  if (!userId || !otp) {
+    return sendResponse(res, 400, false, 'User ID and OTP are required');
+  }
+
+  const result = await authService.verifyOtp(userId, otp);
+
+  res.cookie('refreshToken', result.tokens.refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  return sendResponse(res, 200, true, 'OTP verified successfully', {
     user: result.user,
     accessToken: result.tokens.accessToken
   });

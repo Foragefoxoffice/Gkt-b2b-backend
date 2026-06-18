@@ -4,8 +4,12 @@ import fs from 'fs';
 import path from 'path';
 
 export const createDesign = async (req, res) => {
-  const { code, name, categoryId, color, rate, gstPercent, availableStock, weaverId, loomNumber } = req.body;
-  const image = req.file ? `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : null;
+  const { code, name, categoryId, color, rate, gstPercent, availableStock } = req.body;
+  let images = [];
+  if (req.files && req.files.length > 0) {
+    images = req.files.map(f => `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${f.filename}`);
+  }
+  const image = images.length > 0 ? images.join(',') : null;
 
   const design = await prisma.design.create({
     data: {
@@ -13,9 +17,7 @@ export const createDesign = async (req, res) => {
       rate: parseFloat(rate), 
       gstPercent: parseFloat(gstPercent || 5.0), 
       availableStock: parseInt(availableStock || 0), 
-      image,
-      weaverId: weaverId ? parseInt(weaverId) : null,
-      loomNumber
+      image
     }
   });
   
@@ -45,7 +47,7 @@ export const getDesigns = async (req, res) => {
   const [designs, total] = await Promise.all([
     prisma.design.findMany({ 
       where, skip, take, orderBy: { createdAt: 'desc' },
-      include: { category: true }
+      include: { category: true, looms: { include: { weaver: true } } }
     }),
     prisma.design.count({ where })
   ]);
@@ -68,7 +70,7 @@ export const getDesigns = async (req, res) => {
 export const getDesignById = async (req, res) => {
   const design = await prisma.design.findUnique({
     where: { id: parseInt(req.params.id) },
-    include: { category: true, weaver: true }
+    include: { category: true, looms: { include: { weaver: true } } }
   });
   
   if (!design || design.deletedAt) return sendResponse(res, 404, false, 'Not found');
@@ -76,23 +78,31 @@ export const getDesignById = async (req, res) => {
 };
 
 export const updateDesign = async (req, res) => {
-  const { code, name, categoryId, color, rate, gstPercent, availableStock, weaverId, loomNumber } = req.body;
+  const { code, name, categoryId, color, rate, gstPercent, availableStock } = req.body;
   const designId = parseInt(req.params.id);
   
   const existing = await prisma.design.findUnique({ where: { id: designId } });
   if (!existing || existing.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
   const data = {
-    code, name, color, loomNumber,
+    code, name, color,
     categoryId: categoryId ? parseInt(categoryId) : undefined,
     rate: rate ? parseFloat(rate) : undefined,
     gstPercent: gstPercent ? parseFloat(gstPercent) : undefined,
     availableStock: availableStock ? parseInt(availableStock) : undefined,
-    weaverId: weaverId ? parseInt(weaverId) : undefined,
   };
 
-  if (req.file) {
-    data.image = `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}`;
+  let images = [];
+  if (req.body.existingImages) {
+    const existing = Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages];
+    images = [...existing];
+  }
+  if (req.files && req.files.length > 0) {
+    const newImages = req.files.map(f => `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${f.filename}`);
+    images = [...images, ...newImages];
+  }
+  if (images.length > 0 || req.body.existingImages !== undefined) {
+    data.image = images.length > 0 ? images.join(',') : null;
   }
 
   const updated = await prisma.design.update({

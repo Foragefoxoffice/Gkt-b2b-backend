@@ -11,6 +11,7 @@ router.post('/', weaverController.createWeaver);
 router.get('/', weaverController.getWeavers);
 router.get('/:id', weaverController.getWeaverById);
 router.put('/:id', weaverController.updateWeaver);
+router.put('/:id/looms/:loomId/assign', weaverController.assignDesignToLoom);
 router.delete('/:id', weaverController.deleteWeaver);
 
 export default router;

@@ -2,10 +2,11 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const createFirm = async (req, res) => {
-  const { name, address, gstNumber, panNumber, mobile, email, status } = req.body;
+  const { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status } = req.body;
+  const logo = req.file ? `/uploads/firms/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : req.body.logo;
   
   const firm = await prisma.firm.create({
-    data: { name, address, gstNumber, panNumber, mobile, email, status }
+    data: { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, logo, status: status === 'true' || status === true }
   });
   
   return sendResponse(res, 201, true, 'Firm created successfully', firm);
@@ -51,14 +52,20 @@ export const getFirmById = async (req, res) => {
 };
 
 export const updateFirm = async (req, res) => {
-  const { name, address, gstNumber, panNumber, mobile, email, status } = req.body;
+  const { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status } = req.body;
+  const logo = req.file ? `/uploads/firms/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : req.body.logo;
   
   const firm = await prisma.firm.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!firm || firm.deletedAt) return sendResponse(res, 404, false, 'Firm not found');
 
+  const updateData = { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status: status === 'true' || status === true };
+  if (logo) {
+    updateData.logo = logo;
+  }
+
   const updatedFirm = await prisma.firm.update({
     where: { id: parseInt(req.params.id) },
-    data: { name, address, gstNumber, panNumber, mobile, email, status }
+    data: updateData
   });
 
   return sendResponse(res, 200, true, 'Firm updated successfully', updatedFirm);

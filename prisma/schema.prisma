@@ -25,6 +25,9 @@ model User {
   role      Role      @relation(fields: [roleId], references: [id])
   phone     String?
   avatar    String?
+  lastLoginAt DateTime?
+  otpCode     String?
+  otpExpiresAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -32,12 +35,17 @@ model User {
 
 model Firm {
   id          Int       @id @default(autoincrement())
+  code        String?   @unique
   name        String
   address     String?
   gstNumber   String?
   panNumber   String?
   mobile      String?
+  mobile2     String?
   email       String?
+  stateCode   String?
+  website     String?
+  logo        String?
   status      Boolean   @default(true)
   buyers      Buyer[]
   createdAt   DateTime  @default(now())
@@ -46,21 +54,26 @@ model Firm {
 }
 
 model Buyer {
-  id          Int       @id @default(autoincrement())
-  code        String    @unique
-  name        String
-  firmId      Int
-  firm        Firm      @relation(fields: [firmId], references: [id])
-  mobile      String?
-  email       String?
-  gst         String?
-  pan         String?
-  branches    BuyerBranch[]
-  carts       Cart[]
-  orders      Order[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id              Int       @id @default(autoincrement())
+  code            String    @unique
+  name            String
+  firmId          Int
+  firm            Firm      @relation(fields: [firmId], references: [id])
+  mobile          String?
+  mobile2         String?
+  email           String?
+  gst             String?
+  pan             String?
+  stateCode       String?
+  branchName      String?
+  billingAddress  String?
+  shippingAddress String?
+  branches        BuyerBranch[]
+  carts           Cart[]
+  orders          Order[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 }
 
 model BuyerBranch {
@@ -95,11 +108,20 @@ model Weaver {
   id          Int       @id @default(autoincrement())
   code        String    @unique
   name        String
-  loomNumber  String?
-  designs     Design[]
+  looms       Loom[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
+}
+
+model Loom {
+  id          Int       @id @default(autoincrement())
+  loomNo      String
+  weaverId    Int
+  weaver      Weaver    @relation(fields: [weaverId], references: [id], onDelete: Cascade)
+  designId    Int?
+  design      Design?   @relation(fields: [designId], references: [id])
+  assignedColor String?
 }
 
 model DesignCategory {
@@ -122,10 +144,8 @@ model Design {
   rate            Float
   gstPercent      Float     @default(5.0)
   availableStock  Int       @default(0)
-  image           String?
-  weaverId        Int?
-  weaver          Weaver?   @relation(fields: [weaverId], references: [id])
-  loomNumber      String?
+  image           String?   @db.Text
+  looms           Loom[]
   
   cartItems       CartItem[]
   orderItems      OrderItem[]

@@ -22,7 +22,7 @@ const generateBuyerCode = async () => {
 };
 
 export const createBuyer = async (req, res) => {
-  const { code, name, firmId, mobile, email, gst, pan, branches, password } = req.body;
+  const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, branches, password } = req.body;
   
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -30,7 +30,7 @@ export const createBuyer = async (req, res) => {
       
       const buyer = await tx.buyer.create({
         data: {
-          code: finalCode, name, firmId, mobile, email, gst, pan,
+          code: finalCode, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress,
           branches: {
             create: branches || []
           }
@@ -108,7 +108,7 @@ export const getBuyerById = async (req, res) => {
 };
 
 export const updateBuyer = async (req, res) => {
-  const { code, name, firmId, mobile, email, gst, pan } = req.body;
+  const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress } = req.body;
   const buyerId = parseInt(req.params.id);
 
   const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
@@ -116,7 +116,7 @@ export const updateBuyer = async (req, res) => {
 
   const updatedBuyer = await prisma.buyer.update({
     where: { id: buyerId },
-    data: { code, name, firmId, mobile, email, gst, pan }
+    data: { code, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress }
   });
 
   return sendResponse(res, 200, true, 'Buyer updated', updatedBuyer);
