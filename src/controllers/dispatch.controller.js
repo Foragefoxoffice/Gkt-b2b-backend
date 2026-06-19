@@ -11,8 +11,11 @@ const generateDispatchNumber = async () => {
 export const createDispatch = async (req, res) => {
   const { orderId, transporterId, numberOfBundles, trackingNumber } = req.body;
   
-  const order = await prisma.order.findUnique({ where: { id: parseInt(orderId) }, include: { items: true } });
-  if (!order || order.status !== 'APPROVED') return sendResponse(res, 400, false, 'Invalid or unapproved order');
+  const order = await prisma.order.findUnique({ 
+    where: { id: parseInt(orderId) }, 
+    include: { items: true, buyer: true } 
+  });
+  if (!order || order.status !== 'PROCESSING') return sendResponse(res, 400, false, 'Invalid or unapproved order');
 
   let bookingCopy = null;
   let invoiceCopy = null;
@@ -38,13 +41,24 @@ export const createDispatch = async (req, res) => {
       trackingNumber,
       bookingCopy,
       invoiceCopy,
+      status: 'DISPATCHED',
       items: { create: dispatchItemsData }
     }
   });
 
-  // Automatically update order status to PROCESSING or COMPLETED? 
-  // Let's mark order as PROCESSING when dispatch is created, and COMPLETED when dispatch is DELIVERED.
-  await prisma.order.update({ where: { id: parseInt(orderId) }, data: { status: 'PROCESSING' } });
+  await prisma.order.update({ where: { id: parseInt(orderId) }, data: { status: 'DISPATCHED' } });
+
+  const buyerUser = await prisma.user.findUnique({ where: { email: order.buyer.email } });
+  if (buyerUser) {
+    import('../socket.js').then(({ emitToUser }) => {
+      emitToUser(buyerUser.id, 'notification', {
+        type: 'DISPATCH_CREATED',
+        title: 'Order Dispatched',
+        message: `Your order ${order.orderNumber} has been dispatched.`,
+        data: dispatch
+      });
+    });
+  }
 
   return sendResponse(res, 201, true, 'Dispatch created', dispatch);
 };
@@ -55,11 +69,26 @@ export const updateDispatchStatus = async (req, res) => {
 
   const dispatch = await prisma.dispatch.update({
     where: { id: dispatchId },
-    data: { status }
+    data: { status },
+    include: { order: { include: { buyer: true } } }
   });
 
-  if (status === 'DELIVERED') {
+  if (status === 'DISPATCHED') {
+    await prisma.order.update({ where: { id: dispatch.orderId }, data: { status: 'DISPATCHED' } });
+  } else if (status === 'DELIVERED') {
     await prisma.order.update({ where: { id: dispatch.orderId }, data: { status: 'COMPLETED' } });
+  }
+
+  const buyerUser = await prisma.user.findUnique({ where: { email: dispatch.order.buyer.email } });
+  if (buyerUser) {
+    import('../socket.js').then(({ emitToUser }) => {
+      emitToUser(buyerUser.id, 'notification', {
+        type: 'DISPATCH_UPDATED',
+        title: 'Dispatch Update',
+        message: `The dispatch status for order ${dispatch.order.orderNumber} is now ${status}.`,
+        data: dispatch
+      });
+    });
   }
 
   return sendResponse(res, 200, true, 'Dispatch status updated', dispatch);

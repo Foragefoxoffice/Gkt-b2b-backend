@@ -141,6 +141,7 @@ model Design {
   categoryId      Int
   category        DesignCategory @relation(fields: [categoryId], references: [id])
   color           String?
+  colorStock      String?   @db.Text
   rate            Float
   gstPercent      Float     @default(5.0)
   availableStock  Int       @default(0)
@@ -171,6 +172,7 @@ model CartItem {
   cart        Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
   designId    Int
   design      Design    @relation(fields: [designId], references: [id])
+  color       String?
   quantity    Int       @default(1)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -201,6 +203,7 @@ enum OrderStatus {
   PENDING
   APPROVED
   PROCESSING
+  DISPATCHED
   COMPLETED
   CANCELLED
 }
@@ -211,6 +214,7 @@ model OrderItem {
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   designId    Int
   design      Design    @relation(fields: [designId], references: [id])
+  color       String?
   quantity    Int
   rate        Float
   taxPercent  Float
@@ -268,6 +272,7 @@ model InventoryTransaction {
   id          Int       @id @default(autoincrement())
   designId    Int
   design      Design    @relation(fields: [designId], references: [id])
+  color       String?
   type        TxnType   
   quantity    Int       
   orderRef    String?   

@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
+import { emitToRole } from '../socket.js';
 
 const generateOrderNumber = async () => {
   const lastOrder = await prisma.order.findFirst({ orderBy: { id: 'desc' } });
@@ -39,6 +40,7 @@ export const createOrderFromCart = async (req, res) => {
 
     return {
       designId: item.designId,
+      color: item.color,
       quantity,
       rate,
       taxPercent,
@@ -72,7 +74,13 @@ export const createOrderFromCart = async (req, res) => {
       return order;
     });
 
-    // TODO: Trigger Notification Service here
+    // Notify Admins
+    emitToRole('ADMIN', 'notification', {
+      type: 'ORDER_CREATED',
+      title: 'New Order',
+      message: `Order ${result.orderNumber} placed by ${buyer.name}`,
+      data: result
+    });
 
     return sendResponse(res, 201, true, 'Order created successfully', result);
   } catch (error) {
@@ -140,7 +148,10 @@ export const updateOrderStatus = async (req, res) => {
   const { status, remarks } = req.body;
   const orderId = parseInt(req.params.id);
 
-  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+  const order = await prisma.order.findUnique({ 
+    where: { id: orderId }, 
+    include: { items: true, buyer: true } 
+  });
   if (!order || order.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
   // Cancel order (Buyer or Admin)
@@ -151,13 +162,37 @@ export const updateOrderStatus = async (req, res) => {
       where: { id: orderId },
       data: { status, remarks }
     });
+
+    if (req.user.roleName === 'ADMIN') {
+      const buyerUser = await prisma.user.findUnique({ where: { email: order.buyer.email } });
+      if (buyerUser) {
+        import('../socket.js').then(({ emitToUser }) => {
+          emitToUser(buyerUser.id, 'notification', {
+            type: 'ORDER_CANCELLED',
+            title: 'Order Cancelled',
+            message: `Your order ${order.orderNumber} has been cancelled by Admin.`,
+            data: order
+          });
+        });
+      }
+    } else {
+      import('../socket.js').then(({ emitToRole }) => {
+        emitToRole('ADMIN', 'notification', {
+          type: 'ORDER_CANCELLED',
+          title: 'Order Cancelled',
+          message: `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}.`,
+          data: order
+        });
+      });
+    }
+
     return sendResponse(res, 200, true, 'Order cancelled');
   }
 
   // Admin Approval logic
   if (req.user.roleName === 'BUYER') return sendResponse(res, 403, false, 'Buyers cannot approve/reject orders');
 
-  if (status === 'APPROVED') {
+  if (status === 'PROCESSING') {
     if (order.status !== 'PENDING') return sendResponse(res, 400, false, 'Can only approve PENDING orders');
 
     try {
@@ -167,19 +202,36 @@ export const updateOrderStatus = async (req, res) => {
         
         // Log Approval
         await tx.approval.create({
-          data: { orderId, approvedBy: req.user.id, status: 'APPROVED', remarks }
+          data: { orderId, approvedBy: req.user.id, status: 'PROCESSING', remarks }
         });
 
         // Reserve Stock & Log Inventory Txn
         for (const item of order.items) {
+          const design = await tx.design.findUnique({ where: { id: item.designId } });
+          let newColorStock = design.colorStock;
+          
+          if (item.color && design.colorStock) {
+            try {
+              const colorStocks = JSON.parse(design.colorStock);
+              if (colorStocks[item.color] !== undefined) {
+                colorStocks[item.color] = Math.max(0, colorStocks[item.color] - item.quantity);
+                newColorStock = JSON.stringify(colorStocks);
+              }
+            } catch(e) {}
+          }
+
           await tx.design.update({
             where: { id: item.designId },
-            data: { availableStock: { decrement: item.quantity } }
+            data: { 
+              availableStock: { decrement: item.quantity },
+              colorStock: newColorStock
+            }
           });
 
           await tx.inventoryTransaction.create({
             data: {
               designId: item.designId,
+              color: item.color,
               type: 'ORDER',
               quantity: -item.quantity,
               orderRef: order.orderNumber
@@ -187,9 +239,25 @@ export const updateOrderStatus = async (req, res) => {
           });
         }
       });
-      return sendResponse(res, 200, true, 'Order approved and stock reserved');
+
+      const buyerUser = await prisma.user.findUnique({ where: { email: order.buyer.email } });
+      if (buyerUser) {
+        import('../socket.js').then(({ emitToUser, getIO }) => {
+          emitToUser(buyerUser.id, 'notification', {
+            type: 'ORDER_PROCESSING',
+            title: 'Order Approved',
+            message: `Your order ${order.orderNumber} is now processing.`,
+            data: order
+          });
+          try {
+            getIO().emit('inventoryUpdated');
+          } catch(e) {}
+        });
+      }
+
+      return sendResponse(res, 200, true, 'Order approved and processing started');
     } catch (e) {
-      return sendResponse(res, 500, false, 'Failed to approve order');
+      return sendResponse(res, 500, false, 'Failed to process order');
     }
   }
 

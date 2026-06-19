@@ -23,7 +23,8 @@ export const login = async (req, res) => {
 
   return sendResponse(res, 200, true, 'Login successful', {
     user: result.user,
-    accessToken: result.tokens.accessToken
+    accessToken: result.tokens.accessToken,
+    refreshToken: result.tokens.refreshToken
   });
 };
 
@@ -44,7 +45,8 @@ export const verifyOtp = async (req, res) => {
 
   return sendResponse(res, 200, true, 'OTP verified successfully', {
     user: result.user,
-    accessToken: result.tokens.accessToken
+    accessToken: result.tokens.accessToken,
+    refreshToken: result.tokens.refreshToken
   });
 };
 
@@ -63,7 +65,8 @@ export const refreshToken = async (req, res) => {
   });
 
   return sendResponse(res, 200, true, 'Token refreshed', {
-    accessToken: tokens.accessToken
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken
   });
 };
 

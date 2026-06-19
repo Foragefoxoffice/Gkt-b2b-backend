@@ -34,7 +34,7 @@ export const getCart = async (req, res) => {
 };
 
 export const addToCart = async (req, res) => {
-  const { designId, quantity } = req.body;
+  const { designId, quantity, color } = req.body;
   const buyer = await prisma.buyer.findFirst({ where: { email: req.user.email } });
   if (!buyer) return sendResponse(res, 404, false, 'Buyer not found');
 
@@ -43,7 +43,7 @@ export const addToCart = async (req, res) => {
 
   // Check if item exists
   const existingItem = await prisma.cartItem.findFirst({
-    where: { cartId: cart.id, designId: parseInt(designId) }
+    where: { cartId: cart.id, designId: parseInt(designId), color: color || null }
   });
 
   if (existingItem) {
@@ -54,7 +54,7 @@ export const addToCart = async (req, res) => {
     return sendResponse(res, 200, true, 'Cart item updated', updated);
   } else {
     const newItem = await prisma.cartItem.create({
-      data: { cartId: cart.id, designId: parseInt(designId), quantity: parseInt(quantity) }
+      data: { cartId: cart.id, designId: parseInt(designId), quantity: parseInt(quantity), color: color || null }
     });
     return sendResponse(res, 201, true, 'Added to cart', newItem);
   }

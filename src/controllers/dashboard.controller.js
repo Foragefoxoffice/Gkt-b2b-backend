@@ -18,6 +18,13 @@ export const getAdminDashboard = async (req, res) => {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
+    const monthlyDataMap = {};
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = d.toLocaleString('default', { month: 'short' });
+        monthlyDataMap[monthName] = { name: monthName, sales: 0, buyers: 0 };
+    }
+
     orders.forEach(o => {
       if (o.status !== 'CANCELLED') {
         totalSales += o.grandTotal;
@@ -25,16 +32,66 @@ export const getAdminDashboard = async (req, res) => {
         if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
           monthlySales += o.grandTotal;
         }
+        
+        const monthName = d.toLocaleString('default', { month: 'short' });
+        if (monthlyDataMap[monthName]) {
+          monthlyDataMap[monthName].sales += o.grandTotal;
+        }
       }
     });
+
+    const buyersList = await prisma.buyer.findMany({ where: { deletedAt: null } });
+    buyersList.forEach(b => {
+      const d = new Date(b.createdAt);
+      const monthName = d.toLocaleString('default', { month: 'short' });
+      if (monthlyDataMap[monthName]) {
+        monthlyDataMap[monthName].buyers += 1;
+      }
+    });
+    
+    const monthlyTrends = Object.values(monthlyDataMap);
+
+    const topDesignsAggregation = await prisma.orderItem.groupBy({
+      by: ['designId'],
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 5
+    });
+
+    const topSellingDesigns = [];
+    for (const item of topDesignsAggregation) {
+      const design = await prisma.design.findUnique({ where: { id: item.designId }});
+      if (design) {
+        topSellingDesigns.push({ name: design.name, quantity: item._sum.quantity });
+      }
+    }
+
+    const dispatches = await prisma.dispatch.groupBy({
+      by: ['status'],
+      _count: { id: true },
+      where: { deletedAt: null }
+    });
+    const dispatchStatusDistribution = dispatches.map(d => ({ name: d.status, value: d._count.id }));
+
+    const inventoryAgg = await prisma.design.groupBy({
+      by: ['categoryId'],
+      _sum: { availableStock: true },
+      where: { deletedAt: null }
+    });
+    
+    const inventoryByCategory = [];
+    for (const item of inventoryAgg) {
+      const category = await prisma.designCategory.findUnique({ where: { id: item.categoryId }});
+      if (category) {
+        inventoryByCategory.push({ name: category.name, value: item._sum.availableStock || 0 });
+      }
+    }
 
     const lowStockThreshold = 10;
     const lowStockProducts = await prisma.design.count({
       where: { availableStock: { lt: lowStockThreshold }, deletedAt: null }
     });
 
-    // Mock data for charts if DB queries are too complex for SQLite/MySQL right now
-    // In production, we'd use groupBy or raw queries
     const orderStatusDistribution = [
       { name: 'Pending', value: pendingOrders },
       { name: 'Approved', value: await prisma.order.count({ where: { status: 'APPROVED', deletedAt: null } }) },
@@ -49,7 +106,11 @@ export const getAdminDashboard = async (req, res) => {
         totalSales, monthlySales, lowStockProducts, cancelledOrders
       },
       charts: {
-        orderStatusDistribution
+        orderStatusDistribution,
+        monthlyTrends,
+        topSellingDesigns,
+        dispatchStatusDistribution,
+        inventoryByCategory
       }
     });
   } catch (err) {
