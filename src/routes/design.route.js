@@ -7,10 +7,10 @@ const router = Router();
 
 router.use(authGuard);
 
-router.post('/', roleGuard(['ADMIN', 'SUPER_ADMIN']), upload.array('images', 10), designController.createDesign);
+router.post('/', roleGuard(['ADMIN', 'SUPER_ADMIN']), upload.any(), designController.createDesign);
 router.get('/', designController.getDesigns);
 router.get('/:id', designController.getDesignById);
-router.put('/:id', roleGuard(['ADMIN', 'SUPER_ADMIN']), upload.array('images', 10), designController.updateDesign);
+router.put('/:id', roleGuard(['ADMIN', 'SUPER_ADMIN']), upload.any(), designController.updateDesign);
 router.delete('/:id', roleGuard(['ADMIN', 'SUPER_ADMIN']), designController.deleteDesign);
 
 export default router;

@@ -144,8 +144,10 @@ model Design {
   colorStock      String?   @db.Text
   rate            Float
   gstPercent      Float     @default(5.0)
+  material        String?
   availableStock  Int       @default(0)
   image           String?   @db.Text
+  imageColorMap   String?   @db.Text
   looms           Loom[]
   
   cartItems       CartItem[]

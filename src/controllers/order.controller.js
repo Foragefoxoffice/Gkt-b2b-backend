@@ -1,6 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
-import { emitToRole } from '../socket.js';
+import { emitToRole, emitToUser, getIO } from '../socket.js';
 
 const generateOrderNumber = async () => {
   const lastOrder = await prisma.order.findFirst({ orderBy: { id: 'desc' } });
@@ -79,6 +79,14 @@ export const createOrderFromCart = async (req, res) => {
       type: 'ORDER_CREATED',
       title: 'New Order',
       message: `Order ${result.orderNumber} placed by ${buyer.name}`,
+      data: result
+    });
+
+    // Notify Buyer
+    emitToUser(req.user.id, 'notification', {
+      type: 'ORDER_CREATED',
+      title: 'Order Placed',
+      message: `Your order ${result.orderNumber} has been placed successfully.`,
       data: result
     });
 
@@ -166,23 +174,19 @@ export const updateOrderStatus = async (req, res) => {
     if (req.user.roleName === 'ADMIN') {
       const buyerUser = await prisma.user.findUnique({ where: { email: order.buyer.email } });
       if (buyerUser) {
-        import('../socket.js').then(({ emitToUser }) => {
-          emitToUser(buyerUser.id, 'notification', {
-            type: 'ORDER_CANCELLED',
-            title: 'Order Cancelled',
-            message: `Your order ${order.orderNumber} has been cancelled by Admin.`,
-            data: order
-          });
+        emitToUser(buyerUser.id, 'notification', {
+          type: 'ORDER_CANCELLED',
+          title: 'Order Cancelled',
+          message: `Your order ${order.orderNumber} has been cancelled by Admin.`,
+          data: order
         });
       }
     } else {
-      import('../socket.js').then(({ emitToRole }) => {
-        emitToRole('ADMIN', 'notification', {
-          type: 'ORDER_CANCELLED',
-          title: 'Order Cancelled',
-          message: `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}.`,
-          data: order
-        });
+      emitToRole('ADMIN', 'notification', {
+        type: 'ORDER_CANCELLED',
+        title: 'Order Cancelled',
+        message: `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}.`,
+        data: order
       });
     }
 
@@ -242,17 +246,15 @@ export const updateOrderStatus = async (req, res) => {
 
       const buyerUser = await prisma.user.findUnique({ where: { email: order.buyer.email } });
       if (buyerUser) {
-        import('../socket.js').then(({ emitToUser, getIO }) => {
-          emitToUser(buyerUser.id, 'notification', {
-            type: 'ORDER_PROCESSING',
-            title: 'Order Approved',
-            message: `Your order ${order.orderNumber} is now processing.`,
-            data: order
-          });
-          try {
-            getIO().emit('inventoryUpdated');
-          } catch(e) {}
+        emitToUser(buyerUser.id, 'notification', {
+          type: 'ORDER_PROCESSING',
+          title: 'Order Approved',
+          message: `Your order ${order.orderNumber} is now processing.`,
+          data: order
         });
+        try {
+          getIO().emit('inventoryUpdated');
+        } catch(e) {}
       }
 
       return sendResponse(res, 200, true, 'Order approved and processing started');

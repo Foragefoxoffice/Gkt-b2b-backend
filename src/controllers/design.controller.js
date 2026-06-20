@@ -4,12 +4,17 @@ import fs from 'fs';
 import path from 'path';
 
 export const createDesign = async (req, res) => {
-  const { code, name, categoryId, color, colorStocks, rate, gstPercent, availableStock } = req.body;
+  const { code, name, categoryId, color, colorStocks, rate, gstPercent, material, availableStock } = req.body;
   let images = [];
+  let newImgColors = [];
   if (req.files && req.files.length > 0) {
     images = req.files.map(f => `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${f.filename}`);
+    if (req.body.imageColors !== undefined) {
+      newImgColors = Array.isArray(req.body.imageColors) ? req.body.imageColors : [req.body.imageColors];
+    }
   }
   const image = images.length > 0 ? images.join(',') : null;
+  const imageColorMap = newImgColors.length > 0 ? JSON.stringify(newImgColors) : null;
 
   let finalAvailableStock = parseInt(availableStock || 0);
   let finalColorStock = null;
@@ -26,8 +31,10 @@ export const createDesign = async (req, res) => {
       code, name, categoryId: parseInt(categoryId), color, colorStock: finalColorStock,
       rate: parseFloat(rate), 
       gstPercent: parseFloat(gstPercent || 5.0), 
+      material,
       availableStock: finalAvailableStock, 
-      image
+      image,
+      imageColorMap
     }
   });
 
@@ -92,7 +99,7 @@ export const getDesignById = async (req, res) => {
 };
 
 export const updateDesign = async (req, res) => {
-  const { code, name, categoryId, color, colorStocks, rate, gstPercent, availableStock } = req.body;
+  const { code, name, categoryId, color, colorStocks, rate, gstPercent, material, availableStock } = req.body;
   const designId = parseInt(req.params.id);
   
   const existing = await prisma.design.findUnique({ where: { id: designId } });
@@ -110,7 +117,7 @@ export const updateDesign = async (req, res) => {
   }
 
   const data = {
-    code, name, color, colorStock: finalColorStock,
+    code, name, color, colorStock: finalColorStock, material,
     categoryId: categoryId ? parseInt(categoryId) : undefined,
     rate: rate !== undefined ? parseFloat(rate) : undefined,
     gstPercent: gstPercent !== undefined ? parseFloat(gstPercent) : undefined,
@@ -118,16 +125,28 @@ export const updateDesign = async (req, res) => {
   };
 
   let images = [];
+  let mergedImageColors = [];
   if (req.body.existingImages) {
     const existing = Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages];
     images = [...existing];
+    
+    if (req.body.existingImageColors !== undefined) {
+      const exColors = Array.isArray(req.body.existingImageColors) ? req.body.existingImageColors : [req.body.existingImageColors];
+      mergedImageColors = [...exColors];
+    }
   }
   if (req.files && req.files.length > 0) {
     const newImages = req.files.map(f => `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${f.filename}`);
     images = [...images, ...newImages];
+    
+    if (req.body.imageColors !== undefined) {
+      const newColors = Array.isArray(req.body.imageColors) ? req.body.imageColors : [req.body.imageColors];
+      mergedImageColors = [...mergedImageColors, ...newColors];
+    }
   }
   if (images.length > 0 || req.body.existingImages !== undefined) {
     data.image = images.length > 0 ? images.join(',') : null;
+    data.imageColorMap = mergedImageColors.length > 0 ? JSON.stringify(mergedImageColors) : null;
   }
 
   const updated = await prisma.design.update({
