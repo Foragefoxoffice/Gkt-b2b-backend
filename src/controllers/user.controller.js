@@ -1,0 +1,66 @@
+import bcrypt from 'bcrypt';
+import prisma from '../prisma/client.js';
+import { sendResponse } from '../utils/response.js';
+
+export const getProfile = async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, email: true, name: true, phone: true, avatar: true, role: true }
+  });
+
+  if (!user) {
+    return sendResponse(res, 404, false, 'User not found');
+  }
+  return sendResponse(res, 200, true, 'Profile fetched successfully', user);
+};
+
+export const updateProfile = async (req, res) => {
+  const { name, phone } = req.body;
+  
+  let avatarPath;
+  if (req.file) {
+     const date = new Date();
+     const year = date.getFullYear();
+     const month = String(date.getMonth() + 1).padStart(2, '0');
+     avatarPath = `/uploads/users/${year}/${month}/${req.file.filename}`;
+  }
+
+  const updateData = { name, phone };
+  if (avatarPath) {
+    updateData.avatar = avatarPath;
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: updateData,
+    select: { id: true, email: true, name: true, phone: true, avatar: true, role: true }
+  });
+
+  return sendResponse(res, 200, true, 'Profile updated successfully', user);
+};
+
+export const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return sendResponse(res, 400, false, 'Current and new password are required');
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) {
+    return sendResponse(res, 404, false, 'User not found');
+  }
+
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch) {
+    return sendResponse(res, 400, false, 'Incorrect current password');
+  }
+
+  const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { password: hashedNewPassword }
+  });
+
+  return sendResponse(res, 200, true, 'Password changed successfully');
+};

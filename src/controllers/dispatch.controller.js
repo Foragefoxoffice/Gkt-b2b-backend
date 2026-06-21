@@ -9,7 +9,7 @@ const generateDispatchNumber = async () => {
 };
 
 export const createDispatch = async (req, res) => {
-  const { orderId, transporterId, numberOfBundles, trackingNumber } = req.body;
+  const { orderId, transporterId, numberOfBundles } = req.body;
   
   const order = await prisma.order.findUnique({ 
     where: { id: parseInt(orderId) }, 
@@ -17,13 +17,7 @@ export const createDispatch = async (req, res) => {
   });
   if (!order || order.status !== 'PROCESSING') return sendResponse(res, 400, false, 'Invalid or unapproved order');
 
-  let bookingCopy = null;
-  let invoiceCopy = null;
 
-  if (req.files) {
-    if (req.files.bookingCopy) bookingCopy = `/uploads/dispatches/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.files.bookingCopy[0].filename}`;
-    if (req.files.invoiceCopy) invoiceCopy = `/uploads/dispatches/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.files.invoiceCopy[0].filename}`;
-  }
 
   const dispatchItemsData = order.items.map(item => ({
     orderItemId: item.id,
@@ -38,9 +32,6 @@ export const createDispatch = async (req, res) => {
       orderId: parseInt(orderId),
       transporterId: parseInt(transporterId),
       numberOfBundles: parseInt(numberOfBundles),
-      trackingNumber,
-      bookingCopy,
-      invoiceCopy,
       status: 'DISPATCHED',
       items: { create: dispatchItemsData }
     }
@@ -64,12 +55,31 @@ export const createDispatch = async (req, res) => {
 };
 
 export const updateDispatchStatus = async (req, res) => {
-  const { status } = req.body; // DISPATCHED, DELIVERED
+  const { status, trackingNumber } = req.body; // DISPATCHED, DELIVERED
   const dispatchId = parseInt(req.params.id);
+
+  // Build update data
+  const updateData = { status };
+
+  // When marking as delivered, include tracking number and file uploads
+  if (status === 'DELIVERED') {
+    if (trackingNumber) updateData.trackingNumber = trackingNumber;
+
+    if (req.files) {
+      const year = new Date().getFullYear();
+      const month = String(new Date().getMonth() + 1).padStart(2, '0');
+      if (req.files.bookingCopy) {
+        updateData.bookingCopy = `/uploads/dispatches/${year}/${month}/${req.files.bookingCopy[0].filename}`;
+      }
+      if (req.files.invoiceCopy) {
+        updateData.invoiceCopy = `/uploads/dispatches/${year}/${month}/${req.files.invoiceCopy[0].filename}`;
+      }
+    }
+  }
 
   const dispatch = await prisma.dispatch.update({
     where: { id: dispatchId },
-    data: { status },
+    data: updateData,
     include: { order: { include: { buyer: true } } }
   });
 

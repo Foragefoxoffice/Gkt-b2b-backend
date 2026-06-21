@@ -124,29 +124,43 @@ export const updateDesign = async (req, res) => {
     availableStock: finalAvailableStock,
   };
 
-  let images = [];
-  let mergedImageColors = [];
-  if (req.body.existingImages) {
-    const existing = Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages];
-    images = [...existing];
-    
-    if (req.body.existingImageColors !== undefined) {
-      const exColors = Array.isArray(req.body.existingImageColors) ? req.body.existingImageColors : [req.body.existingImageColors];
-      mergedImageColors = [...exColors];
+  let finalImages = [];
+  let finalColors = [];
+  
+  const existingImgs = req.body.existingImages ? (Array.isArray(req.body.existingImages) ? req.body.existingImages : [req.body.existingImages]) : [];
+  const existingColors = req.body.existingImageColors ? (Array.isArray(req.body.existingImageColors) ? req.body.existingImageColors : [req.body.existingImageColors]) : [];
+  
+  const newImgs = req.files && req.files.length > 0 ? req.files.map(f => `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${f.filename}`) : [];
+  const newColors = req.body.imageColors ? (Array.isArray(req.body.imageColors) ? req.body.imageColors : [req.body.imageColors]) : [];
+
+  if (req.body.mediaSequence) {
+    try {
+      const sequence = JSON.parse(req.body.mediaSequence);
+      let eIdx = 0;
+      let nIdx = 0;
+      for (const type of sequence) {
+        if (type === 'existing' && existingImgs[eIdx] !== undefined) {
+          finalImages.push(existingImgs[eIdx]);
+          finalColors.push(existingColors[eIdx] || '');
+          eIdx++;
+        } else if (type === 'new' && newImgs[nIdx] !== undefined) {
+          finalImages.push(newImgs[nIdx]);
+          finalColors.push(newColors[nIdx] || '');
+          nIdx++;
+        }
+      }
+    } catch(e) {
+      finalImages = [...existingImgs, ...newImgs];
+      finalColors = [...existingColors, ...newColors];
     }
+  } else {
+    finalImages = [...existingImgs, ...newImgs];
+    finalColors = [...existingColors, ...newColors];
   }
-  if (req.files && req.files.length > 0) {
-    const newImages = req.files.map(f => `/uploads/designs/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${f.filename}`);
-    images = [...images, ...newImages];
-    
-    if (req.body.imageColors !== undefined) {
-      const newColors = Array.isArray(req.body.imageColors) ? req.body.imageColors : [req.body.imageColors];
-      mergedImageColors = [...mergedImageColors, ...newColors];
-    }
-  }
-  if (images.length > 0 || req.body.existingImages !== undefined) {
-    data.image = images.length > 0 ? images.join(',') : null;
-    data.imageColorMap = mergedImageColors.length > 0 ? JSON.stringify(mergedImageColors) : null;
+
+  if (finalImages.length > 0 || req.body.existingImages !== undefined) {
+    data.image = finalImages.length > 0 ? finalImages.join(',') : null;
+    data.imageColorMap = finalColors.length > 0 ? JSON.stringify(finalColors) : null;
   }
 
   const updated = await prisma.design.update({
@@ -154,8 +168,17 @@ export const updateDesign = async (req, res) => {
     data
   });
 
-  import('../socket.js').then(({ getIO }) => {
+  import('../socket.js').then(({ emitToRole, getIO }) => {
     getIO().emit('inventoryUpdated');
+
+    if (existing.availableStock !== updated.availableStock || existing.colorStock !== updated.colorStock) {
+      emitToRole('BUYER', 'notification', {
+        type: 'STOCK_UPDATED',
+        title: 'Stock Updated',
+        message: `Stock for design "${updated.name}" (${updated.code}) has been updated.`,
+        data: updated
+      });
+    }
   });
 
   return sendResponse(res, 200, true, 'Updated', updated);

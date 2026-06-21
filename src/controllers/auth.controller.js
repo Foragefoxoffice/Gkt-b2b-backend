@@ -74,3 +74,23 @@ export const logout = (req, res) => {
   res.clearCookie('refreshToken');
   return sendResponse(res, 200, true, 'Logged out successfully');
 };
+
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return sendResponse(res, 400, false, 'Email is required');
+  }
+
+  const result = await authService.forgotPassword(email);
+  return sendResponse(res, 200, true, 'OTP sent to registered email', result);
+};
+
+export const resetPassword = async (req, res) => {
+  const { userId, otp, newPassword } = req.body;
+  if (!userId || !otp || !newPassword) {
+    return sendResponse(res, 400, false, 'User ID, OTP and new password are required');
+  }
+
+  await authService.resetPassword(userId, otp, newPassword);
+  return sendResponse(res, 200, true, 'Password reset successfully');
+};

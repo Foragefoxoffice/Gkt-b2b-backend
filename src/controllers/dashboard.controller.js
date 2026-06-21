@@ -6,6 +6,8 @@ export const getAdminDashboard = async (req, res) => {
     const totalBuyers = await prisma.buyer.count({ where: { deletedAt: null } });
     const totalOrders = await prisma.order.count({ where: { deletedAt: null } });
     const pendingOrders = await prisma.order.count({ where: { status: 'PENDING', deletedAt: null } });
+    const pendingRequests = await prisma.productRequest.count({ where: { status: 'PENDING', deletedAt: null } });
+    const pendingDispatches = await prisma.order.count({ where: { status: 'PROCESSING', deletedAt: null } });
     const completedOrders = await prisma.order.count({ where: { status: 'COMPLETED', deletedAt: null } });
     const cancelledOrders = await prisma.order.count({ where: { status: 'CANCELLED', deletedAt: null } });
 
@@ -92,6 +94,12 @@ export const getAdminDashboard = async (req, res) => {
       where: { availableStock: { lt: lowStockThreshold }, deletedAt: null }
     });
 
+    const criticalStockThreshold = 5;
+    const criticalStockItems = await prisma.design.findMany({
+      where: { availableStock: { lt: criticalStockThreshold }, deletedAt: null },
+      select: { id: true, name: true, code: true, availableStock: true }
+    });
+
     const orderStatusDistribution = [
       { name: 'Pending', value: pendingOrders },
       { name: 'Approved', value: await prisma.order.count({ where: { status: 'APPROVED', deletedAt: null } }) },
@@ -103,7 +111,7 @@ export const getAdminDashboard = async (req, res) => {
     return sendResponse(res, 200, true, 'Admin Dashboard', {
       kpi: {
         totalBuyers, totalOrders, pendingOrders, completedOrders,
-        totalSales, monthlySales, lowStockProducts, cancelledOrders
+        totalSales, monthlySales, lowStockProducts, cancelledOrders, pendingRequests, pendingDispatches, criticalStockItems
       },
       charts: {
         orderStatusDistribution,

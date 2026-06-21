@@ -42,8 +42,8 @@ export const createBuyer = async (req, res) => {
       if (email) {
         const buyerRole = await tx.role.findUnique({ where: { name: 'BUYER' } });
         if (buyerRole) {
-          const passToUse = password || 'buyer@123';
-          const defaultPassword = await bcrypt.hash(passToUse, 10);
+          const generatedPassword = Math.random().toString(36).slice(-8) + Math.floor(Math.random() * 10);
+          const defaultPassword = await bcrypt.hash(generatedPassword, 10);
           await tx.user.create({
             data: {
               email: email,
@@ -53,6 +53,11 @@ export const createBuyer = async (req, res) => {
               phone: mobile
             }
           });
+
+          // Send credentials via email
+          const { sendCredentialsEmail } = await import('../services/email.service.js');
+          // intentionally non-blocking email send
+          sendCredentialsEmail(email, name, generatedPassword).catch(e => console.error(e));
         }
       }
 

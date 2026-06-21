@@ -2,9 +2,9 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const createTransporter = async (req, res) => {
-  const { name, mobile, email, address } = req.body;
+  const { name, mobile, email, address, gstNumber } = req.body;
   const transporter = await prisma.transporter.create({
-    data: { name, mobile, email, address }
+    data: { name, mobile, email, address, gstNumber }
   });
   return sendResponse(res, 201, true, 'Transporter created', transporter);
 };
@@ -34,7 +34,7 @@ export const getTransporterById = async (req, res) => {
 };
 
 export const updateTransporter = async (req, res) => {
-  const { name, mobile, email, address } = req.body;
+  const { name, mobile, email, address, gstNumber } = req.body;
   const transporterId = parseInt(req.params.id);
 
   const existing = await prisma.transporter.findUnique({ where: { id: transporterId } });
@@ -42,7 +42,7 @@ export const updateTransporter = async (req, res) => {
 
   const updated = await prisma.transporter.update({
     where: { id: transporterId },
-    data: { name, mobile, email, address }
+    data: { name, mobile, email, address, gstNumber }
   });
   return sendResponse(res, 200, true, 'Updated', updated);
 };

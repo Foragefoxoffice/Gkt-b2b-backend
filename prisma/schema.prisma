@@ -47,11 +47,24 @@ model Firm {
   website     String?
   logo        String?
   status      Boolean   @default(true)
+  companyId   Int?
+  company     Company?  @relation(fields: [companyId], references: [id])
   buyers      Buyer[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 }
+
+model Company {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  status      Boolean   @default(true)
+  firms       Firm[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
 
 model Buyer {
   id              Int       @id @default(autoincrement())
@@ -71,6 +84,7 @@ model Buyer {
   branches        BuyerBranch[]
   carts           Cart[]
   orders          Order[]
+  productRequests ProductRequest[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
@@ -97,6 +111,7 @@ model Transporter {
   mobile      String?
   email       String?
   address     String?
+  gstNumber   String?
   orders      Order[]
   dispatches  Dispatch[]
   createdAt   DateTime  @default(now())
@@ -152,6 +167,7 @@ model Design {
   
   cartItems       CartItem[]
   orderItems      OrderItem[]
+  productRequestItems ProductRequestItem[]
   inventoryTxns   InventoryTransaction[]
 
   createdAt       DateTime  @default(now())
@@ -295,4 +311,36 @@ model Notification {
   channel     String    
   readAt      DateTime?
   createdAt   DateTime  @default(now())
+}
+
+model ProductRequest {
+  id              Int                  @id @default(autoincrement())
+  requestNumber   String               @unique
+  buyerId         Int
+  buyer           Buyer                @relation(fields: [buyerId], references: [id])
+  remarks         String?              @db.Text
+  status          ProductRequestStatus @default(PENDING)
+  items           ProductRequestItem[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  deletedAt       DateTime?
+}
+
+enum ProductRequestStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+model ProductRequestItem {
+  id               Int            @id @default(autoincrement())
+  productRequestId Int
+  productRequest   ProductRequest @relation(fields: [productRequestId], references: [id], onDelete: Cascade)
+  designId         Int
+  design           Design         @relation(fields: [designId], references: [id])
+  color            String?
+  quantity         Int
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 }

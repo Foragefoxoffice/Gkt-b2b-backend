@@ -49,6 +49,11 @@ export const login = async (email, password) => {
       const { sendEmailOtp } = await import('./email.service.js');
       await sendEmailOtp(user.email, otpCode);
 
+      if (user.phone) {
+        const { sendWhatsappOtp } = await import('./whatsapp.service.js');
+        await sendWhatsappOtp(user.phone, otpCode);
+      }
+
       return {
         requiresOtp: true,
         user: {
@@ -143,4 +148,66 @@ export const refreshToken = async (token) => {
   } catch (error) {
     throw { status: 403, message: 'Invalid or expired refresh token' };
   }
+};
+
+export const forgotPassword = async (email) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { role: true }
+  });
+
+  if (!user || user.deletedAt) {
+    throw { status: 404, message: 'User with this email not found' };
+  }
+
+  const now = new Date();
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 mins
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { otpCode, otpExpiresAt }
+  });
+
+  const { sendEmailOtp } = await import('./email.service.js');
+  await sendEmailOtp(user.email, otpCode);
+
+  if (user.phone) {
+    const { sendWhatsappOtp } = await import('./whatsapp.service.js');
+    await sendWhatsappOtp(user.phone, otpCode);
+  }
+
+  return { userId: user.id };
+};
+
+export const resetPassword = async (userId, otpCode, newPassword) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user || user.deletedAt) {
+    throw { status: 404, message: 'User not found' };
+  }
+
+  if (!user.otpCode || user.otpCode !== otpCode) {
+    throw { status: 400, message: 'Invalid OTP' };
+  }
+
+  const now = new Date();
+  if (!user.otpExpiresAt || new Date(user.otpExpiresAt) < now) {
+    throw { status: 400, message: 'OTP has expired' };
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      otpCode: null,
+      otpExpiresAt: null,
+    }
+  });
+
+  return { success: true };
 };

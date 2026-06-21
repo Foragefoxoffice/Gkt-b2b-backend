@@ -2,11 +2,25 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const createFirm = async (req, res) => {
-  const { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status } = req.body;
+  const { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status, companyId } = req.body;
   const logo = req.file ? `/uploads/firms/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : req.body.logo;
   
   const firm = await prisma.firm.create({
-    data: { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, logo, status: status === 'true' || status === true }
+    data: { 
+      code, 
+      name, 
+      address, 
+      gstNumber, 
+      panNumber, 
+      mobile, 
+      mobile2, 
+      email, 
+      stateCode, 
+      website, 
+      logo, 
+      status: status === 'true' || status === true,
+      companyId: companyId ? parseInt(companyId) : null
+    }
   });
   
   return sendResponse(res, 201, true, 'Firm created successfully', firm);
@@ -27,7 +41,13 @@ export const getFirms = async (req, res) => {
   }
 
   const [firms, total] = await Promise.all([
-    prisma.firm.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+    prisma.firm.findMany({ 
+      where, 
+      skip, 
+      take, 
+      include: { company: true },
+      orderBy: { createdAt: 'desc' } 
+    }),
     prisma.firm.count({ where })
   ]);
 
@@ -41,7 +61,8 @@ export const getFirms = async (req, res) => {
 
 export const getFirmById = async (req, res) => {
   const firm = await prisma.firm.findUnique({
-    where: { id: parseInt(req.params.id) }
+    where: { id: parseInt(req.params.id) },
+    include: { company: true }
   });
 
   if (!firm || firm.deletedAt) {
@@ -52,13 +73,26 @@ export const getFirmById = async (req, res) => {
 };
 
 export const updateFirm = async (req, res) => {
-  const { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status } = req.body;
+  const { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status, companyId } = req.body;
   const logo = req.file ? `/uploads/firms/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : req.body.logo;
   
   const firm = await prisma.firm.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!firm || firm.deletedAt) return sendResponse(res, 404, false, 'Firm not found');
 
-  const updateData = { code, name, address, gstNumber, panNumber, mobile, mobile2, email, stateCode, website, status: status === 'true' || status === true };
+  const updateData = { 
+    code, 
+    name, 
+    address, 
+    gstNumber, 
+    panNumber, 
+    mobile, 
+    mobile2, 
+    email, 
+    stateCode, 
+    website, 
+    status: status === 'true' || status === true,
+    companyId: companyId ? parseInt(companyId) : null
+  };
   if (logo) {
     updateData.logo = logo;
   }
