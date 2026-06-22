@@ -2,7 +2,7 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const createCompany = async (req, res) => {
-  const { name, status, address, gst, phone } = req.body;
+  const { name, status, address, gst, phone, email } = req.body;
   const logo = req.file ? `/uploads/companies/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : null;
   
   const existing = await prisma.company.findFirst({
@@ -19,6 +19,7 @@ export const createCompany = async (req, res) => {
       address,
       gst,
       phone,
+      email,
       status: status === undefined ? true : (status === 'true' || status === true)
     }
   });
@@ -34,7 +35,7 @@ export const getCompanies = async (req, res) => {
 };
 
 export const updateCompany = async (req, res) => {
-  const { name, status, address, gst, phone } = req.body;
+  const { name, status, address, gst, phone, email } = req.body;
   const { id } = req.params;
 
   const company = await prisma.company.findUnique({
@@ -63,6 +64,7 @@ export const updateCompany = async (req, res) => {
       address: address !== undefined ? address : company.address,
       gst: gst !== undefined ? gst : company.gst,
       phone: phone !== undefined ? phone : company.phone,
+      email: email !== undefined ? email : company.email,
       status: status === undefined ? company.status : (status === 'true' || status === true)
     }
   });

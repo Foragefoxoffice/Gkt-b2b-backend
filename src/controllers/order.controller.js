@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 import { emitToRole, emitToUser, getIO } from '../socket.js';
+import nodemailer from 'nodemailer';
 
 const generateOrderNumber = async (tx) => {
   const client = tx || prisma;
@@ -11,7 +12,8 @@ const generateOrderNumber = async (tx) => {
 };
 
 export const createOrderFromCart = async (req, res) => {
-  const { transporterId, remarks } = req.body;
+  const { transporterId, remarks, orderGivenBy, orderGivenByPhone } = req.body;
+  const signature = req.file ? `/uploads/orders/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : null;
   const buyer = await prisma.buyer.findFirst({ where: { email: req.user.email } });
   if (!buyer) return sendResponse(res, 404, false, 'Buyer not found');
 
@@ -146,6 +148,7 @@ export const createOrderFromCart = async (req, res) => {
           buyerId: buyer.id,
           transporterId: transporterId ? parseInt(transporterId) : null,
           gstAmount, totalAmount, grandTotal, remarks,
+          orderGivenBy, orderGivenByPhone, signature,
           items: {
             create: orderItemsData
           }
@@ -156,7 +159,25 @@ export const createOrderFromCart = async (req, res) => {
       // Clear cart
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-      return order;
+      // Fetch full order for frontend PDF generation
+      const fullOrder = await tx.order.findUnique({
+        where: { id: order.id },
+        include: {
+          buyer: {
+            include: {
+              firm: {
+                include: {
+                  company: true
+                }
+              }
+            }
+          },
+          transporter: true,
+          items: { include: { design: true } }
+        }
+      });
+
+      return fullOrder;
     });
 
     // Notify Admins
@@ -435,4 +456,69 @@ export const updateOrderStatus = async (req, res) => {
   }
 
   return sendResponse(res, 400, false, 'Invalid status update');
+};
+
+export const emailOrderPdf = async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const pdfFile = req.file;
+
+    if (!pdfFile) {
+      return sendResponse(res, 400, false, 'No PDF file provided');
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        buyer: {
+          include: { firm: { include: { company: true } } }
+        }
+      }
+    });
+
+    if (!order) {
+      return sendResponse(res, 404, false, 'Order not found');
+    }
+
+    const buyerEmail = order.buyer?.email;
+    const companyEmail = order.buyer?.firm?.company?.email;
+
+    if (!buyerEmail && !companyEmail) {
+      return sendResponse(res, 400, false, 'No emails found for this order');
+    }
+
+    const toEmails = [buyerEmail, companyEmail].filter(Boolean).join(', ');
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: process.env.SMTP_PORT || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    const mailOptions = {
+      from: `"Order System" <${process.env.SMTP_USER}>`,
+      to: toEmails,
+      subject: `Order Confirmation - ${order.orderNumber}`,
+      text: `Hello,\n\nPlease find attached the confirmation for Order ${order.orderNumber}.\n\nThank you!`,
+      attachments: [
+        {
+          filename: pdfFile.originalname || `Order_${order.orderNumber}.pdf`,
+          path: pdfFile.path
+        }
+      ]
+    };
+
+    transporter.sendMail(mailOptions)
+      .then(() => console.log('Email sent successfully for order:', order.orderNumber))
+      .catch(err => console.error('Error sending email:', err));
+
+    return sendResponse(res, 200, true, 'Email sending initiated');
+  } catch (error) {
+    console.error('Error in email setup:', error);
+    return sendResponse(res, 500, false, `Failed to setup email: ${error.message}`);
+  }
 };

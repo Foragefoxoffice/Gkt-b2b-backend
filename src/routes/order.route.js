@@ -4,11 +4,14 @@ import { authGuard } from '../middlewares/authGuard.js';
 
 const router = Router();
 
+import { upload } from '../middlewares/upload.js';
+
 router.use(authGuard);
 
-router.post('/', orderController.createOrderFromCart);
+router.post('/', upload.single('signature'), orderController.createOrderFromCart);
 router.get('/', orderController.getOrders);
 router.get('/:id', orderController.getOrderById);
 router.put('/:id/status', orderController.updateOrderStatus);
+router.post('/:id/email', upload.single('orderPdf'), orderController.emailOrderPdf);
 
 export default router;
