@@ -3,7 +3,7 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const getProfile = async (req, res) => {
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: { id: true, email: true, name: true, phone: true, avatar: true, role: true }
   });
@@ -11,7 +11,32 @@ export const getProfile = async (req, res) => {
   if (!user) {
     return sendResponse(res, 404, false, 'User not found');
   }
-  return sendResponse(res, 200, true, 'Profile fetched successfully', user);
+
+  let companyData = null;
+  if (user.role && user.role.name === 'BUYER') {
+    const buyer = await prisma.buyer.findFirst({
+      where: { email: user.email },
+      include: { firm: { include: { company: true } } }
+    });
+    
+    if (buyer && buyer.firm) {
+      companyData = {
+        firmName: buyer.firm.name,
+        companyName: buyer.firm.company ? buyer.firm.company.name : buyer.firm.name,
+        logo: (buyer.firm.company && buyer.firm.company.logo) ? buyer.firm.company.logo : (buyer.firm.logo || null)
+      };
+    }
+  }
+
+  const profileResponse = {
+    ...user,
+    role: user.role?.name || user.role,
+    firmName: companyData ? companyData.firmName : null,
+    companyName: companyData ? companyData.companyName : null,
+    companyLogo: companyData ? companyData.logo : null,
+  };
+
+  return sendResponse(res, 200, true, 'Profile fetched successfully', profileResponse);
 };
 
 export const updateProfile = async (req, res) => {

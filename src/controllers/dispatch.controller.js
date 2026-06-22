@@ -105,13 +105,20 @@ export const updateDispatchStatus = async (req, res) => {
 };
 
 export const getDispatches = async (req, res) => {
-  const { search, status, page = 1, limit = 20 } = req.query;
+  const { search, status, transporterId, page = 1, limit = 20 } = req.query;
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const take = parseInt(limit);
 
   const where = { deletedAt: null };
-  if (status) where.status = status;
-  if (search) where.dispatchNumber = { contains: search };
+  if (status && status !== 'ALL') where.status = status;
+  if (transporterId && transporterId !== 'ALL') where.transporterId = parseInt(transporterId);
+  if (search) {
+    where.OR = [
+      { dispatchNumber: { contains: search } },
+      { trackingNumber: { contains: search } },
+      { order: { orderNumber: { contains: search } } }
+    ];
+  }
 
   if (req.user.roleName === 'BUYER') {
     const buyer = await prisma.buyer.findFirst({ where: { email: req.user.email } });

@@ -2,7 +2,8 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const createCompany = async (req, res) => {
-  const { name, status } = req.body;
+  const { name, status, address, gst, phone } = req.body;
+  const logo = req.file ? `/uploads/companies/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : null;
   
   const existing = await prisma.company.findFirst({
     where: { name, deletedAt: null }
@@ -14,6 +15,10 @@ export const createCompany = async (req, res) => {
   const company = await prisma.company.create({
     data: { 
       name, 
+      logo,
+      address,
+      gst,
+      phone,
       status: status === undefined ? true : (status === 'true' || status === true)
     }
   });
@@ -29,7 +34,7 @@ export const getCompanies = async (req, res) => {
 };
 
 export const updateCompany = async (req, res) => {
-  const { name, status } = req.body;
+  const { name, status, address, gst, phone } = req.body;
   const { id } = req.params;
 
   const company = await prisma.company.findUnique({
@@ -48,10 +53,16 @@ export const updateCompany = async (req, res) => {
     }
   }
 
+  const logo = req.file ? `/uploads/companies/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${req.file.filename}` : company.logo;
+
   const updated = await prisma.company.update({
     where: { id: parseInt(id) },
     data: { 
       name: name || company.name,
+      logo,
+      address: address !== undefined ? address : company.address,
+      gst: gst !== undefined ? gst : company.gst,
+      phone: phone !== undefined ? phone : company.phone,
       status: status === undefined ? company.status : (status === 'true' || status === true)
     }
   });

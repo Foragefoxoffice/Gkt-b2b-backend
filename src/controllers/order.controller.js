@@ -286,7 +286,15 @@ export const getOrderById = async (req, res) => {
   const order = await prisma.order.findUnique({
     where: { id: parseInt(req.params.id) },
     include: {
-      buyer: true,
+      buyer: {
+        include: {
+          firm: {
+            include: {
+              company: true
+            }
+          }
+        }
+      },
       transporter: true,
       items: { include: { design: true } },
       approvals: true,

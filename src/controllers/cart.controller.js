@@ -13,6 +13,15 @@ export const getCart = async (req, res) => {
     include: {
       items: {
         include: { design: true }
+      },
+      buyer: {
+        include: {
+          firm: {
+            include: {
+              company: true
+            }
+          }
+        }
       }
     }
   });
@@ -20,7 +29,10 @@ export const getCart = async (req, res) => {
   if (!cart) {
     cart = await prisma.cart.create({
       data: { buyerId: buyer.id },
-      include: { items: { include: { design: true } } }
+      include: { 
+        items: { include: { design: true } },
+        buyer: { include: { firm: { include: { company: true } } } }
+      }
     });
   }
 

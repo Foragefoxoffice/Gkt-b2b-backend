@@ -58,6 +58,10 @@ model Firm {
 model Company {
   id          Int       @id @default(autoincrement())
   name        String    @unique
+  logo        String?
+  address     String?
+  gst         String?
+  phone       String?
   status      Boolean   @default(true)
   firms       Firm[]
   createdAt   DateTime  @default(now())

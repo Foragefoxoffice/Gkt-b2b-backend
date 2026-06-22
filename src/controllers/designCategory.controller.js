@@ -10,11 +10,28 @@ export const createCategory = async (req, res) => {
 };
 
 export const getCategories = async (req, res) => {
-  const categories = await prisma.designCategory.findMany({
-    where: { deletedAt: null },
-    orderBy: { name: 'asc' }
+  const { search, page = 1, limit = 20 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const take = parseInt(limit);
+
+  const where = { deletedAt: null };
+  if (search) {
+    where.name = { contains: search };
+  }
+
+  const [categories, total] = await Promise.all([
+    prisma.designCategory.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { name: 'asc' }
+    }),
+    prisma.designCategory.count({ where })
+  ]);
+
+  return sendResponse(res, 200, true, 'Categories retrieved', categories, {
+    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take)
   });
-  return sendResponse(res, 200, true, 'Categories retrieved', categories);
 };
 
 export const updateCategory = async (req, res) => {

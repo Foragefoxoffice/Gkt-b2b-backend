@@ -119,12 +119,29 @@ export const updateBuyer = async (req, res) => {
   const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
   if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
 
-  const updatedBuyer = await prisma.buyer.update({
-    where: { id: buyerId },
-    data: { code, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress }
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedBuyer = await tx.buyer.update({
+      where: { id: buyerId },
+      data: { code, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress }
+    });
+
+    if (email && buyer.email && email !== buyer.email) {
+      const existingUser = await tx.user.findUnique({ where: { email: buyer.email } });
+      if (existingUser) {
+        const newEmailUser = await tx.user.findUnique({ where: { email } });
+        if (!newEmailUser) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: { email }
+          });
+        }
+      }
+    }
+    
+    return updatedBuyer;
   });
 
-  return sendResponse(res, 200, true, 'Buyer updated', updatedBuyer);
+  return sendResponse(res, 200, true, 'Buyer updated', result);
 };
 
 export const deleteBuyer = async (req, res) => {

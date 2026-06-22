@@ -11,6 +11,35 @@ const generateTokens = (user, roleName) => {
   return { accessToken, refreshToken };
 };
 
+const getUserResponseData = async (user) => {
+  let companyData = null;
+  if (user.role.name === 'BUYER') {
+    const buyer = await prisma.buyer.findFirst({
+      where: { email: user.email },
+      include: { firm: { include: { company: true } } }
+    });
+    
+    if (buyer && buyer.firm) {
+      companyData = {
+        firmName: buyer.firm.name,
+        companyName: buyer.firm.company ? buyer.firm.company.name : buyer.firm.name,
+        logo: (buyer.firm.company && buyer.firm.company.logo) ? buyer.firm.company.logo : (buyer.firm.logo || null)
+      };
+    }
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role.name,
+    avatar: user.avatar,
+    firmName: companyData ? companyData.firmName : null,
+    companyName: companyData ? companyData.companyName : null,
+    companyLogo: companyData ? companyData.logo : null,
+  };
+};
+
 export const login = async (email, password) => {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -71,15 +100,10 @@ export const login = async (email, password) => {
   });
 
   const tokens = generateTokens(user, user.role.name);
+  const userResponse = await getUserResponseData(user);
   
   return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role.name,
-      avatar: user.avatar,
-    },
+    user: userResponse,
     tokens
   };
 };
@@ -114,15 +138,10 @@ export const verifyOtp = async (userId, otpCode) => {
   });
 
   const tokens = generateTokens(user, user.role.name);
+  const userResponse = await getUserResponseData(user);
 
   return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role.name,
-      avatar: user.avatar,
-    },
+    user: userResponse,
     tokens
   };
 };
