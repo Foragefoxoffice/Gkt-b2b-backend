@@ -4,7 +4,7 @@ import { emitToRole, emitToUser, getIO } from '../socket.js';
 
 const generateRequestNumber = async (tx) => {
   const client = tx || prisma;
-  const lastRequest = await client.productRequest.findFirst({ orderBy: { id: 'desc' } });
+  const lastRequest = await client.productrequest.findFirst({ orderBy: { id: 'desc' } });
   if (!lastRequest) return 'PRQ-000001';
   const lastNum = parseInt(lastRequest.requestNumber.split('-')[1]);
   return `PRQ-${String(lastNum + 1).padStart(6, '0')}`;
@@ -38,7 +38,7 @@ export const createProductRequest = async (req, res) => {
         quantity: item.quantity
       }));
 
-      const productRequest = await tx.productRequest.create({
+      const productRequest = await tx.productrequest.create({
         data: {
           requestNumber,
           buyerId: buyer.id,
@@ -112,7 +112,7 @@ export const getProductRequests = async (req, res) => {
   }
 
   const [requests, total] = await Promise.all([
-    prisma.productRequest.findMany({
+    prisma.productrequest.findMany({
       where,
       skip,
       take,
@@ -122,7 +122,7 @@ export const getProductRequests = async (req, res) => {
         items: { include: { design: true } }
       }
     }),
-    prisma.productRequest.count({ where })
+    prisma.productrequest.count({ where })
   ]);
 
   return sendResponse(res, 200, true, 'Product Requests retrieved', requests, {
@@ -134,7 +134,7 @@ export const getProductRequests = async (req, res) => {
 };
 
 export const getProductRequestById = async (req, res) => {
-  const request = await prisma.productRequest.findUnique({
+  const request = await prisma.productrequest.findUnique({
     where: { id: parseInt(req.params.id) },
     include: {
       buyer: true,
@@ -162,7 +162,7 @@ export const updateProductRequestStatus = async (req, res) => {
     return sendResponse(res, 403, false, 'Buyers cannot update request status');
   }
 
-  const request = await prisma.productRequest.findUnique({
+  const request = await prisma.productrequest.findUnique({
     where: { id: requestId },
     include: { buyer: true, items: true }
   });
@@ -171,7 +171,7 @@ export const updateProductRequestStatus = async (req, res) => {
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedReq = await tx.productRequest.update({
+      const updatedReq = await tx.productrequest.update({
         where: { id: requestId },
         data: { status },
         include: { buyer: true, items: { include: { design: true } } }

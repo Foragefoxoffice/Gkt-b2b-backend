@@ -6,7 +6,7 @@ export const getAdminDashboard = async (req, res) => {
     const totalBuyers = await prisma.buyer.count({ where: { deletedAt: null } });
     const totalOrders = await prisma.order.count({ where: { deletedAt: null } });
     const pendingOrders = await prisma.order.count({ where: { status: 'PENDING', deletedAt: null } });
-    const pendingRequests = await prisma.productRequest.count({ where: { status: 'PENDING', deletedAt: null } });
+    const pendingRequests = await prisma.productrequest.count({ where: { status: 'PENDING', deletedAt: null } });
     const pendingDispatches = await prisma.order.count({ where: { status: 'PROCESSING', deletedAt: null } });
     const completedOrders = await prisma.order.count({ where: { status: 'COMPLETED', deletedAt: null } });
     const cancelledOrders = await prisma.order.count({ where: { status: 'CANCELLED', deletedAt: null } });
