@@ -317,7 +317,7 @@ export const getOrderById = async (req, res) => {
         }
       },
       transporter: true,
-      items: { include: { design: true } },
+      orderitem: { include: { design: true } },
       approval: true,
       dispatch: true
     }
