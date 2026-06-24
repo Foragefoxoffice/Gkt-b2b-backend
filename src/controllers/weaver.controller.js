@@ -4,14 +4,14 @@ import { sendResponse } from '../utils/response.js';
 export const createWeaver = async (req, res) => {
   const { name, code, looms } = req.body;
   const weaver = await prisma.weaver.create({
-    data: { 
-      name, 
+    data: {
+      name,
       code,
       looms: looms && looms.length > 0 ? {
         create: looms.map(l => ({ loomNo: l }))
       } : undefined
     },
-    include: { looms: { include: { design: true } } }
+    include: { loom: { include: { design: true } } }
   });
   return sendResponse(res, 201, true, 'Weaver created', weaver);
 };
@@ -30,12 +30,12 @@ export const getWeavers = async (req, res) => {
   }
 
   const [weavers, total] = await Promise.all([
-    prisma.weaver.findMany({ 
-      where, 
-      skip, 
-      take, 
+    prisma.weaver.findMany({
+      where,
+      skip,
+      take,
       orderBy: { createdAt: 'desc' },
-      include: { looms: { include: { design: true } } }
+      include: { loom: { include: { design: true } } }
     }),
     prisma.weaver.count({ where })
   ]);
@@ -46,7 +46,7 @@ export const getWeavers = async (req, res) => {
 };
 
 export const getWeaverById = async (req, res) => {
-  const weaver = await prisma.weaver.findUnique({ 
+  const weaver = await prisma.weaver.findUnique({
     where: { id: parseInt(req.params.id) },
     include: { looms: { include: { design: true } } }
   });
@@ -56,12 +56,12 @@ export const getWeaverById = async (req, res) => {
 
 export const updateWeaver = async (req, res) => {
   const { name, code, looms } = req.body;
-  const existing = await prisma.weaver.findUnique({ where: { id: parseInt(req.params.id) }, include: { looms: true } });
+  const existing = await prisma.weaver.findUnique({ where: { id: parseInt(req.params.id) }, include: { loom: true } });
   if (!existing || existing.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
   const loomsList = Array.isArray(looms) ? looms : [];
-  const loomsToDelete = existing.looms.filter(l => !loomsList.includes(l.loomNo));
-  const existingLoomNos = existing.looms.map(l => l.loomNo);
+  const loomsToDelete = existing.loom.filter(l => !loomsList.includes(l.loomNo));
+  const existingLoomNos = existing.loom.map(l => l.loomNo);
   const loomsToAdd = loomsList.filter(l => !existingLoomNos.includes(l));
 
   const updated = await prisma.$transaction(async (prisma) => {
@@ -78,7 +78,7 @@ export const updateWeaver = async (req, res) => {
     return await prisma.weaver.update({
       where: { id: parseInt(req.params.id) },
       data: { name, code },
-      include: { looms: { include: { design: true } } }
+      include: { loom: { include: { design: true } } }
     });
   });
   return sendResponse(res, 200, true, 'Updated', updated);
@@ -98,14 +98,14 @@ export const deleteWeaver = async (req, res) => {
 export const assignDesignToLoom = async (req, res) => {
   const { loomId } = req.params;
   const { designId, assignedColor } = req.body;
-  
+
   const loom = await prisma.loom.findUnique({ where: { id: parseInt(loomId) } });
   if (!loom) return sendResponse(res, 404, false, 'Loom not found');
 
   // designId can be null to unassign
   const updatedLoom = await prisma.loom.update({
     where: { id: parseInt(loomId) },
-    data: { 
+    data: {
       designId: designId ? parseInt(designId) : null,
       assignedColor: assignedColor || null
     },
