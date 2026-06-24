@@ -3,7 +3,7 @@ import { sendResponse } from '../utils/response.js';
 
 export const createCategory = async (req, res) => {
   const { name, code } = req.body;
-  const category = await prisma.designCategory.create({
+  const category = await prisma.designcategory.create({
     data: { name, code }
   });
   return sendResponse(res, 201, true, 'Category created', category);
@@ -20,13 +20,13 @@ export const getCategories = async (req, res) => {
   }
 
   const [categories, total] = await Promise.all([
-    prisma.designCategory.findMany({
+    prisma.designcategory.findMany({
       where,
       skip,
       take,
       orderBy: { name: 'asc' }
     }),
-    prisma.designCategory.count({ where })
+    prisma.designcategory.count({ where })
   ]);
 
   return sendResponse(res, 200, true, 'Categories retrieved', categories, {
@@ -36,10 +36,10 @@ export const getCategories = async (req, res) => {
 
 export const updateCategory = async (req, res) => {
   const { name, code } = req.body;
-  const existing = await prisma.designCategory.findUnique({ where: { id: parseInt(req.params.id) } });
+  const existing = await prisma.designcategory.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!existing || existing.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
-  const updated = await prisma.designCategory.update({
+  const updated = await prisma.designcategory.update({
     where: { id: parseInt(req.params.id) },
     data: { name, code }
   });
@@ -47,10 +47,10 @@ export const updateCategory = async (req, res) => {
 };
 
 export const deleteCategory = async (req, res) => {
-  const existing = await prisma.designCategory.findUnique({ where: { id: parseInt(req.params.id) } });
+  const existing = await prisma.designcategory.findUnique({ where: { id: parseInt(req.params.id) } });
   if (!existing || existing.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
-  await prisma.designCategory.update({
+  await prisma.designcategory.update({
     where: { id: parseInt(req.params.id) },
     data: { deletedAt: new Date() }
   });

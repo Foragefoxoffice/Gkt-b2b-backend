@@ -12,19 +12,19 @@ export const getAdminDashboard = async (req, res) => {
     const cancelledOrders = await prisma.order.count({ where: { status: 'CANCELLED', deletedAt: null } });
 
     const orders = await prisma.order.findMany({ where: { deletedAt: null } });
-    
+
     let totalSales = 0;
     let monthlySales = 0;
-    
+
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
     const monthlyDataMap = {};
     for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthName = d.toLocaleString('default', { month: 'short' });
-        monthlyDataMap[monthName] = { name: monthName, sales: 0, buyers: 0 };
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = d.toLocaleString('default', { month: 'short' });
+      monthlyDataMap[monthName] = { name: monthName, sales: 0, buyers: 0 };
     }
 
     orders.forEach(o => {
@@ -34,7 +34,7 @@ export const getAdminDashboard = async (req, res) => {
         if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
           monthlySales += o.grandTotal;
         }
-        
+
         const monthName = d.toLocaleString('default', { month: 'short' });
         if (monthlyDataMap[monthName]) {
           monthlyDataMap[monthName].sales += o.grandTotal;
@@ -50,7 +50,7 @@ export const getAdminDashboard = async (req, res) => {
         monthlyDataMap[monthName].buyers += 1;
       }
     });
-    
+
     const monthlyTrends = Object.values(monthlyDataMap);
 
     const topDesignsAggregation = await prisma.orderItem.groupBy({
@@ -62,7 +62,7 @@ export const getAdminDashboard = async (req, res) => {
 
     const topSellingDesigns = [];
     for (const item of topDesignsAggregation) {
-      const design = await prisma.design.findUnique({ where: { id: item.designId }});
+      const design = await prisma.design.findUnique({ where: { id: item.designId } });
       if (design) {
         topSellingDesigns.push({ name: design.name, quantity: item._sum.quantity });
       }
@@ -80,10 +80,10 @@ export const getAdminDashboard = async (req, res) => {
       _sum: { availableStock: true },
       where: { deletedAt: null }
     });
-    
+
     const inventoryByCategory = [];
     for (const item of inventoryAgg) {
-      const category = await prisma.designCategory.findUnique({ where: { id: item.categoryId }});
+      const category = await prisma.designcategory.findUnique({ where: { id: item.categoryId } });
       if (category) {
         inventoryByCategory.push({ name: category.name, value: item._sum.availableStock || 0 });
       }
@@ -152,7 +152,7 @@ export const getBuyerDashboard = async (req, res) => {
     const allOrders = await prisma.order.findMany({ where: { buyerId: buyer.id, deletedAt: null } });
     const cancelled = await prisma.order.count({ where: { buyerId: buyer.id, status: 'CANCELLED', deletedAt: null } });
     const processing = await prisma.order.count({ where: { buyerId: buyer.id, status: 'PROCESSING', deletedAt: null } });
-    
+
     // 1. Order Status Distribution
     const orderStatusDistribution = [
       { name: 'Pending', value: pending },
@@ -166,9 +166,9 @@ export const getBuyerDashboard = async (req, res) => {
     const monthlyDataMap = {};
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const monthName = d.toLocaleString('default', { month: 'short' });
-        monthlyDataMap[monthName] = { name: monthName, orders: 0, amount: 0 };
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = d.toLocaleString('default', { month: 'short' });
+      monthlyDataMap[monthName] = { name: monthName, orders: 0, amount: 0 };
     }
 
     allOrders.forEach(o => {
