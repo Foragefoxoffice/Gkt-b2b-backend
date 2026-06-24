@@ -53,7 +53,7 @@ export const getAdminDashboard = async (req, res) => {
 
     const monthlyTrends = Object.values(monthlyDataMap);
 
-    const topDesignsAggregation = await prisma.orderItem.groupBy({
+    const topDesignsAggregation = await prisma.orderitem.groupBy({
       by: ['designId'],
       _sum: { quantity: true },
       orderBy: { _sum: { quantity: 'desc' } },
