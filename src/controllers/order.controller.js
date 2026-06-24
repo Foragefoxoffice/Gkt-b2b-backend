@@ -19,7 +19,7 @@ export const createOrderFromCart = async (req, res) => {
 
   const cart = await prisma.cart.findUnique({
     where: { buyerId: buyer.id },
-    include: { items: { include: { design: true } } }
+    include: { orderitem: { include: { design: true } } }
   });
 
   if (!cart || cart.items.length === 0) {
@@ -33,7 +33,7 @@ export const createOrderFromCart = async (req, res) => {
     const rate = item.design.rate;
     const taxPercent = item.design.gstPercent;
     const quantity = item.quantity;
-    
+
     const lineBaseTotal = rate * quantity;
     const taxAmount = (lineBaseTotal * taxPercent) / 100;
     const lineTotal = lineBaseTotal + taxAmount;
@@ -93,7 +93,7 @@ export const createOrderFromCart = async (req, res) => {
         const design = await tx.design.findUnique({
           where: { id: item.designId }
         });
-        
+
         if (!design || design.deletedAt) {
           throw new Error(`Design "${item.design?.name || 'Unknown'}" is no longer available`);
         }
@@ -141,7 +141,7 @@ export const createOrderFromCart = async (req, res) => {
           }
         });
       }
-      
+
       const order = await tx.order.create({
         data: {
           orderNumber,
@@ -149,11 +149,11 @@ export const createOrderFromCart = async (req, res) => {
           transporterId: transporterId ? parseInt(transporterId) : null,
           gstAmount, totalAmount, grandTotal, remarks,
           orderGivenBy, orderGivenByPhone, signature,
-          items: {
+          orderitem: {
             create: orderItemsData
           }
         },
-        include: { items: true }
+        include: { orderitem: true }
       });
 
       // Clear cart
@@ -173,7 +173,7 @@ export const createOrderFromCart = async (req, res) => {
             }
           },
           transporter: true,
-          items: { include: { design: true } }
+          orderitem: { include: { design: true } }
         }
       });
 
@@ -198,7 +198,7 @@ export const createOrderFromCart = async (req, res) => {
 
     try {
       getIO().emit('inventoryUpdated');
-    } catch (e) {}
+    } catch (e) { }
 
     return sendResponse(res, 201, true, 'Order created successfully', result);
   } catch (error) {
@@ -279,7 +279,7 @@ export const getOrders = async (req, res) => {
 
   stats.totalOrders = allOrdersForStats.length;
   stats.pendingOrders = allOrdersForStats.filter(o => o.status === 'PENDING').length;
-  
+
   if (req.user.roleName === 'BUYER') {
     stats.totalAmount = allOrdersForStats
       .filter(o => o.status !== 'CANCELLED')
@@ -291,7 +291,7 @@ export const getOrders = async (req, res) => {
   }
 
   const [orders, total] = await Promise.all([
-    prisma.order.findMany({ 
+    prisma.order.findMany({
       where, skip, take, orderBy,
       include: { buyer: true, transporter: true }
     }),
@@ -318,13 +318,13 @@ export const getOrderById = async (req, res) => {
       },
       transporter: true,
       items: { include: { design: true } },
-      approvals: true,
-      dispatches: true
+      approval: true,
+      dispatch: true
     }
   });
 
   if (!order || order.deletedAt) return sendResponse(res, 404, false, 'Not found');
-  
+
   if (req.user.roleName === 'BUYER') {
     const buyer = await prisma.buyer.findFirst({ where: { email: req.user.email } });
     if (!buyer || order.buyerId !== buyer.id) {
@@ -339,16 +339,16 @@ export const updateOrderStatus = async (req, res) => {
   const { status, remarks } = req.body;
   const orderId = parseInt(req.params.id);
 
-  const order = await prisma.order.findUnique({ 
-    where: { id: orderId }, 
-    include: { items: true, buyer: true } 
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { orderitem: true, buyer: true }
   });
   if (!order || order.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
   // Cancel order (Buyer or Admin)
   if (status === 'CANCELLED') {
     if (order.status !== 'PENDING') return sendResponse(res, 400, false, 'Can only cancel PENDING orders');
-    
+
     try {
       await prisma.$transaction(async (tx) => {
         // Update Order
@@ -370,12 +370,12 @@ export const updateOrderStatus = async (req, res) => {
                 colorStocks[item.color] = (parseInt(colorStocks[item.color]) || 0) + item.quantity;
                 newColorStock = JSON.stringify(colorStocks);
               }
-            } catch (e) {}
+            } catch (e) { }
           }
 
           await tx.design.update({
             where: { id: item.designId },
-            data: { 
+            data: {
               availableStock: { increment: item.quantity },
               colorStock: newColorStock
             }
@@ -414,7 +414,7 @@ export const updateOrderStatus = async (req, res) => {
 
       try {
         getIO().emit('inventoryUpdated');
-      } catch (e) {}
+      } catch (e) { }
 
       return sendResponse(res, 200, true, 'Order cancelled');
     } catch (e) {
@@ -432,7 +432,7 @@ export const updateOrderStatus = async (req, res) => {
       await prisma.$transaction(async (tx) => {
         // Update Order
         await tx.order.update({ where: { id: orderId }, data: { status } });
-        
+
         // Log Approval
         await tx.approval.create({
           data: { orderId, approvedBy: req.user.id, status: 'PROCESSING', remarks }
