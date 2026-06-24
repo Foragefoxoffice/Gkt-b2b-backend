@@ -2,13 +2,13 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 
 export const createWeaver = async (req, res) => {
-  const { name, code, looms } = req.body;
+  const { name, code, loom } = req.body;
   const weaver = await prisma.weaver.create({
     data: {
       name,
       code,
-      loom: looms && looms.length > 0 ? {
-        create: looms.map(l => ({ loomNo: l }))
+      loom: loom && loom.length > 0 ? {
+        create: loom.map(l => ({ loomNo: l }))
       } : undefined
     },
     include: { loom: { include: { design: true } } }
@@ -55,24 +55,24 @@ export const getWeaverById = async (req, res) => {
 };
 
 export const updateWeaver = async (req, res) => {
-  const { name, code, looms } = req.body;
+  const { name, code, loom } = req.body;
   const existing = await prisma.weaver.findUnique({ where: { id: parseInt(req.params.id) }, include: { loom: true } });
   if (!existing || existing.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
-  const loomsList = Array.isArray(looms) ? looms : [];
-  const loomsToDelete = existing.loom.filter(l => !loomsList.includes(l.loomNo));
+  const loomList = Array.isArray(loom) ? loom : [];
+  const loomToDelete = existing.loom.filter(l => !loomList.includes(l.loomNo));
   const existingLoomNos = existing.loom.map(l => l.loomNo);
-  const loomsToAdd = loomsList.filter(l => !existingLoomNos.includes(l));
+  const loomToAdd = loomList.filter(l => !existingLoomNos.includes(l));
 
   const updated = await prisma.$transaction(async (prisma) => {
-    if (loomsToDelete.length > 0) {
+    if (loomToDelete.length > 0) {
       await prisma.loom.deleteMany({
-        where: { id: { in: loomsToDelete.map(l => l.id) } }
+        where: { id: { in: loomToDelete.map(l => l.id) } }
       });
     }
-    if (loomsToAdd.length > 0) {
+    if (loomToAdd.length > 0) {
       await prisma.loom.createMany({
-        data: loomsToAdd.map(l => ({ loomNo: l, weaverId: existing.id }))
+        data: loomToAdd.map(l => ({ loomNo: l, weaverId: existing.id }))
       });
     }
     return await prisma.weaver.update({
