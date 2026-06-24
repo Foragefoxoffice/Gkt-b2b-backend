@@ -61,7 +61,12 @@ export const updateProfile = async (req, res) => {
     select: { id: true, email: true, name: true, phone: true, avatar: true, role: true }
   });
 
-  return sendResponse(res, 200, true, 'Profile updated successfully', user);
+  const profileResponse = {
+    ...user,
+    role: user.role?.name || user.role,
+  };
+
+  return sendResponse(res, 200, true, 'Profile updated successfully', profileResponse);
 };
 
 export const changePassword = async (req, res) => {
