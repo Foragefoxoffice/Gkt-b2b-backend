@@ -8,34 +8,34 @@ const generateBuyerCode = async () => {
     orderBy: { id: 'desc' }
   });
   if (!lastBuyer || !lastBuyer.code) return 'BUY-0001';
-  
+
   const parts = lastBuyer.code.split('-');
   const lastNum = parts.length > 1 ? parseInt(parts[1]) : NaN;
-  
+
   if (isNaN(lastNum)) {
     // If the last code wasn't in the expected format, just count total buyers or fallback
     const count = await prisma.buyer.count();
     return `BUY-${String(count + 1).padStart(4, '0')}`;
   }
-  
+
   return `BUY-${String(lastNum + 1).padStart(4, '0')}`;
 };
 
 export const createBuyer = async (req, res) => {
-  const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, branches, password } = req.body;
-  
+  const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, buyerbranch, password } = req.body;
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       const finalCode = code || await generateBuyerCode();
-      
+
       const buyer = await tx.buyer.create({
         data: {
           code: finalCode, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress,
-          branches: {
-            create: branches || []
+          buyerbranch: {
+            create: buyerbranch || []
           }
         },
-        include: { branches: true }
+        include: { buyerbranch: true }
       });
 
       // Auto-generate User credentials for buyer
@@ -63,7 +63,7 @@ export const createBuyer = async (req, res) => {
 
       return buyer;
     });
-    
+
     return sendResponse(res, 201, true, 'Buyer created successfully', result);
   } catch (error) {
     throw error;
@@ -72,7 +72,7 @@ export const createBuyer = async (req, res) => {
 
 export const getBuyers = async (req, res) => {
   const { search, firmId, page = 1, limit = 20 } = req.query;
-  
+
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const take = parseInt(limit);
 
@@ -91,7 +91,7 @@ export const getBuyers = async (req, res) => {
   const [buyers, total] = await Promise.all([
     prisma.buyer.findMany({
       where, skip, take, orderBy: { createdAt: 'desc' },
-      include: { firm: true, branches: true }
+      include: { firm: true, buyerbranch: true }
     }),
     prisma.buyer.count({ where })
   ]);
@@ -105,7 +105,7 @@ export const getBuyers = async (req, res) => {
 export const getBuyerById = async (req, res) => {
   const buyer = await prisma.buyer.findUnique({
     where: { id: parseInt(req.params.id) },
-    include: { firm: true, branches: true }
+    include: { firm: true, buyerbranch: true }
   });
 
   if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
@@ -137,7 +137,7 @@ export const updateBuyer = async (req, res) => {
         }
       }
     }
-    
+
     return updatedBuyer;
   });
 
