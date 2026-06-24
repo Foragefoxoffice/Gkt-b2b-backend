@@ -7,7 +7,7 @@ export const createWeaver = async (req, res) => {
     data: {
       name,
       code,
-      looms: looms && looms.length > 0 ? {
+      loom: looms && looms.length > 0 ? {
         create: looms.map(l => ({ loomNo: l }))
       } : undefined
     },
@@ -48,7 +48,7 @@ export const getWeavers = async (req, res) => {
 export const getWeaverById = async (req, res) => {
   const weaver = await prisma.weaver.findUnique({
     where: { id: parseInt(req.params.id) },
-    include: { looms: { include: { design: true } } }
+    include: { loom: { include: { design: true } } }
   });
   if (!weaver || weaver.deletedAt) return sendResponse(res, 404, false, 'Not found');
   return sendResponse(res, 200, true, 'Retrieved', weaver);
