@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import * as weaverController from '../controllers/weaver.controller.js';
-import { authGuard, roleGuard } from '../middlewares/authGuard.js';
+import { authGuard, roleGuard, ADMIN_ROLES } from '../middlewares/authGuard.js';
 
 const router = Router();
 
 router.use(authGuard);
-router.use(roleGuard(['ADMIN', 'SUPER_ADMIN']));
+router.use(roleGuard(ADMIN_ROLES));
 
 router.post('/', weaverController.createWeaver);
 router.get('/', weaverController.getWeavers);

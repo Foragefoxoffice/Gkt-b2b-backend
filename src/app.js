@@ -20,6 +20,7 @@ import dispatchRoutes from './routes/dispatch.route.js';
 import dashboardRoutes from './routes/dashboard.route.js';
 import productRequestRoutes from './routes/productRequest.route.js';
 import userRoutes from './routes/user.route.js';
+import staffRoutes from './routes/staff.route.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +54,7 @@ app.use('/api/dispatches', dispatchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/product-requests', productRequestRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/staff', staffRoutes);
 
 // Root Route
 app.get('/', (req, res) => {

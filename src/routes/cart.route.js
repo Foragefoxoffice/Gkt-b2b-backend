@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import * as cartController from '../controllers/cart.controller.js';
-import { authGuard, roleGuard } from '../middlewares/authGuard.js';
+import { authGuard, roleGuard, ADMIN_ROLES } from '../middlewares/authGuard.js';
 
 const router = Router();
 
 router.use(authGuard);
-router.use(roleGuard(['BUYER', 'ADMIN', 'SUPER_ADMIN'])); // Admins might impersonate/view
+router.use(roleGuard(['BUYER', ...ADMIN_ROLES])); // Admins might impersonate/view
 
 router.get('/', cartController.getCart);
 router.post('/add', cartController.addToCart);

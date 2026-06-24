@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { sendResponse } from '../utils/response.js';
 
+export const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'STAFF', 'MANAGER', 'DISPATCHER'];
+
 export const authGuard = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

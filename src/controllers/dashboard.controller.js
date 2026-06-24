@@ -94,7 +94,7 @@ export const getAdminDashboard = async (req, res) => {
       where: { availableStock: { lt: lowStockThreshold }, deletedAt: null }
     });
 
-    const criticalStockThreshold = 5;
+    const criticalStockThreshold = 10;
     const criticalStockItems = await prisma.design.findMany({
       where: { availableStock: { lt: criticalStockThreshold }, deletedAt: null },
       select: { id: true, name: true, code: true, availableStock: true }

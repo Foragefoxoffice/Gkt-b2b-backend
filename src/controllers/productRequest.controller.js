@@ -119,7 +119,7 @@ export const getProductRequests = async (req, res) => {
       orderBy: { createdAt: 'desc' },
       include: {
         buyer: true,
-        items: { include: { design: true } }
+        items: { include: { design: { include: { loom: { include: { weaver: true } } } } } }
       }
     }),
     prisma.productrequest.count({ where })
@@ -138,7 +138,7 @@ export const getProductRequestById = async (req, res) => {
     where: { id: parseInt(req.params.id) },
     include: {
       buyer: true,
-      items: { include: { design: true } }
+      items: { include: { design: { include: { loom: { include: { weaver: true } } } } } }
     }
   });
 
@@ -174,7 +174,7 @@ export const updateProductRequestStatus = async (req, res) => {
       const updatedReq = await tx.productrequest.update({
         where: { id: requestId },
         data: { status },
-        include: { buyer: true, items: { include: { design: true } } }
+        include: { buyer: true, items: { include: { design: { include: { loom: { include: { weaver: true } } } } } } }
       });
 
       // If status is APPROVED and a loomId is specified, assign the design to the loom

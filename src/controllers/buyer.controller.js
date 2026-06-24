@@ -22,7 +22,7 @@ const generateBuyerCode = async () => {
 };
 
 export const createBuyer = async (req, res) => {
-  const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, buyerbranch, password } = req.body;
+  const { code, name, companyId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, buyerbranch, password } = req.body;
 
   if (email) {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -31,13 +31,31 @@ export const createBuyer = async (req, res) => {
     }
   }
 
+  if (!companyId) {
+    return sendResponse(res, 400, false, 'Company is required');
+  }
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       const finalCode = code || await generateBuyerCode();
 
+      // Resolve firm from companyId
+      let firm = await tx.firm.findFirst({ where: { companyId: parseInt(companyId), deletedAt: null } });
+      if (!firm) {
+        const company = await tx.company.findUnique({ where: { id: parseInt(companyId) } });
+        if (!company) throw new Error('Company not found');
+        firm = await tx.firm.create({
+          data: {
+            name: company.name,
+            code: 'F-' + company.id,
+            companyId: company.id
+          }
+        });
+      }
+
       const buyer = await tx.buyer.create({
         data: {
-          code: finalCode, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress,
+          code: finalCode, name, firmId: firm.id, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress,
           buyerbranch: {
             create: buyerbranch || []
           }
@@ -98,7 +116,7 @@ export const getBuyers = async (req, res) => {
   const [buyers, total] = await Promise.all([
     prisma.buyer.findMany({
       where, skip, take, orderBy: { createdAt: 'desc' },
-      include: { firm: true, buyerbranch: true }
+      include: { firm: { include: { company: true } }, buyerbranch: true }
     }),
     prisma.buyer.count({ where })
   ]);
@@ -112,7 +130,7 @@ export const getBuyers = async (req, res) => {
 export const getBuyerById = async (req, res) => {
   const buyer = await prisma.buyer.findUnique({
     where: { id: parseInt(req.params.id) },
-    include: { firm: true, buyerbranch: true }
+    include: { firm: { include: { company: true } }, buyerbranch: true }
   });
 
   if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
@@ -120,7 +138,7 @@ export const getBuyerById = async (req, res) => {
 };
 
 export const updateBuyer = async (req, res) => {
-  const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress } = req.body;
+  const { code, name, companyId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress } = req.body;
   const buyerId = parseInt(req.params.id);
 
   const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
@@ -134,9 +152,26 @@ export const updateBuyer = async (req, res) => {
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    let firmIdToUse = buyer.firmId;
+    if (companyId) {
+      let firm = await tx.firm.findFirst({ where: { companyId: parseInt(companyId), deletedAt: null } });
+      if (!firm) {
+        const company = await tx.company.findUnique({ where: { id: parseInt(companyId) } });
+        if (!company) throw new Error('Company not found');
+        firm = await tx.firm.create({
+          data: {
+            name: company.name,
+            code: 'F-' + company.id,
+            companyId: company.id
+          }
+        });
+      }
+      firmIdToUse = firm.id;
+    }
+
     const updatedBuyer = await tx.buyer.update({
       where: { id: buyerId },
-      data: { code, name, firmId: parseInt(firmId), mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress }
+      data: { code, name, firmId: firmIdToUse, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress }
     });
 
     if (email && buyer.email && email !== buyer.email) {
