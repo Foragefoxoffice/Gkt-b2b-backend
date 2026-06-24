@@ -19,7 +19,7 @@ export const createOrderFromCart = async (req, res) => {
 
   const cart = await prisma.cart.findUnique({
     where: { buyerId: buyer.id },
-    include: { orderitem: { include: { design: true } } }
+    include: { items: { include: { design: true } } }
   });
 
   if (!cart || cart.items.length === 0) {
@@ -131,7 +131,7 @@ export const createOrderFromCart = async (req, res) => {
         });
 
         // Log inventory transaction
-        await tx.inventoryTransaction.create({
+        await tx.inventorytransaction.create({
           data: {
             designId: item.designId,
             color: item.color,
@@ -149,15 +149,15 @@ export const createOrderFromCart = async (req, res) => {
           transporterId: transporterId ? parseInt(transporterId) : null,
           gstAmount, totalAmount, grandTotal, remarks,
           orderGivenBy, orderGivenByPhone, signature,
-          orderitem: {
+          items: {
             create: orderItemsData
           }
         },
-        include: { orderitem: true }
+        include: { items: true }
       });
 
       // Clear cart
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await tx.cartitem.deleteMany({ where: { cartId: cart.id } });
 
       // Fetch full order for frontend PDF generation
       const fullOrder = await tx.order.findUnique({
@@ -173,7 +173,7 @@ export const createOrderFromCart = async (req, res) => {
             }
           },
           transporter: true,
-          orderitem: { include: { design: true } }
+          items: { include: { design: true } }
         }
       });
 
@@ -317,7 +317,7 @@ export const getOrderById = async (req, res) => {
         }
       },
       transporter: true,
-      orderitem: { include: { design: true } },
+      items: { include: { design: true } },
       approval: true,
       dispatch: true
     }
@@ -341,7 +341,7 @@ export const updateOrderStatus = async (req, res) => {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { orderitem: true, buyer: true }
+    include: { items: true, buyer: true }
   });
   if (!order || order.deletedAt) return sendResponse(res, 404, false, 'Not found');
 
@@ -381,7 +381,7 @@ export const updateOrderStatus = async (req, res) => {
             }
           });
 
-          await tx.inventoryTransaction.create({
+          await tx.inventorytransaction.create({
             data: {
               designId: item.designId,
               color: item.color,

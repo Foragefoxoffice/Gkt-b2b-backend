@@ -54,7 +54,7 @@ export const createProductRequest = async (req, res) => {
       });
 
       // Clear the buyer's cart after successfully creating the request
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await tx.cartitem.deleteMany({ where: { cartId: cart.id } });
 
       return productRequest;
     });

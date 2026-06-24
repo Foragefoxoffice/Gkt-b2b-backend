@@ -24,6 +24,13 @@ const generateBuyerCode = async () => {
 export const createBuyer = async (req, res) => {
   const { code, name, firmId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, buyerbranch, password } = req.body;
 
+  if (email) {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return sendResponse(res, 400, false, 'A user with this email already exists');
+    }
+  }
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       const finalCode = code || await generateBuyerCode();
@@ -118,6 +125,13 @@ export const updateBuyer = async (req, res) => {
 
   const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
   if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
+
+  if (email && email !== buyer.email) {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return sendResponse(res, 400, false, 'A user with this email already exists');
+    }
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const updatedBuyer = await tx.buyer.update({

@@ -54,18 +54,18 @@ export const addToCart = async (req, res) => {
   if (!cart) cart = await prisma.cart.create({ data: { buyerId: buyer.id } });
 
   // Check if item exists
-  const existingItem = await prisma.cartItem.findFirst({
+  const existingItem = await prisma.cartitem.findFirst({
     where: { cartId: cart.id, designId: parseInt(designId), color: color || null }
   });
 
   if (existingItem) {
-    const updated = await prisma.cartItem.update({
+    const updated = await prisma.cartitem.update({
       where: { id: existingItem.id },
       data: { quantity: existingItem.quantity + parseInt(quantity) }
     });
     return sendResponse(res, 200, true, 'Cart item updated', updated);
   } else {
-    const newItem = await prisma.cartItem.create({
+    const newItem = await prisma.cartitem.create({
       data: { cartId: cart.id, designId: parseInt(designId), quantity: parseInt(quantity), color: color || null }
     });
     return sendResponse(res, 201, true, 'Added to cart', newItem);
@@ -76,7 +76,7 @@ export const updateCartItem = async (req, res) => {
   const { quantity } = req.body;
   const cartItemId = parseInt(req.params.itemId);
 
-  const updated = await prisma.cartItem.update({
+  const updated = await prisma.cartitem.update({
     where: { id: cartItemId },
     data: { quantity: parseInt(quantity) }
   });
@@ -85,6 +85,6 @@ export const updateCartItem = async (req, res) => {
 
 export const removeCartItem = async (req, res) => {
   const cartItemId = parseInt(req.params.itemId);
-  await prisma.cartItem.delete({ where: { id: cartItemId } });
+  await prisma.cartitem.delete({ where: { id: cartItemId } });
   return sendResponse(res, 200, true, 'Item removed');
 };
