@@ -522,3 +522,31 @@ export const emailOrderPdf = async (req, res) => {
     return sendResponse(res, 500, false, `Failed to setup email: ${error.message}`);
   }
 };
+
+export const deleteOrder = async (req, res) => {
+  if (req.user.roleName !== 'ADMIN' && req.user.roleName !== 'SUPER_ADMIN') {
+    return sendResponse(res, 403, false, 'Access denied');
+  }
+
+  const orderId = parseInt(req.params.id);
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+
+  if (!order || order.deletedAt) {
+    return sendResponse(res, 404, false, 'Order not found');
+  }
+
+  if (order.status !== 'CANCELLED') {
+    return sendResponse(res, 400, false, 'Only cancelled orders can be deleted');
+  }
+
+  try {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { deletedAt: new Date() }
+    });
+    return sendResponse(res, 200, true, 'Order deleted successfully');
+  } catch (error) {
+    return sendResponse(res, 500, false, 'Failed to delete order');
+  }
+};
+

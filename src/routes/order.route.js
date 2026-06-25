@@ -12,6 +12,7 @@ router.post('/', upload.single('signature'), orderController.createOrderFromCart
 router.get('/', orderController.getOrders);
 router.get('/:id', orderController.getOrderById);
 router.put('/:id/status', orderController.updateOrderStatus);
+router.delete('/:id', orderController.deleteOrder);
 router.post('/:id/email', upload.single('orderPdf'), orderController.emailOrderPdf);
 
 export default router;
