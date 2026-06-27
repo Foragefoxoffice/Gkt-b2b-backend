@@ -139,7 +139,14 @@ export const getBuyerDashboard = async (req, res) => {
     const recentOrders = await prisma.order.findMany({
       where: { buyerId: buyer.id, deletedAt: null },
       orderBy: { orderDate: 'desc' },
-      take: 3
+      take: 3,
+      include: {
+        items: {
+          include: {
+            design: true
+          }
+        }
+      }
     });
 
     const newArrivals = await prisma.design.findMany({
@@ -152,6 +159,18 @@ export const getBuyerDashboard = async (req, res) => {
     const allOrders = await prisma.order.findMany({ where: { buyerId: buyer.id, deletedAt: null } });
     const cancelled = await prisma.order.count({ where: { buyerId: buyer.id, status: 'CANCELLED', deletedAt: null } });
     const processing = await prisma.order.count({ where: { buyerId: buyer.id, status: 'PROCESSING', deletedAt: null } });
+
+    // Calculate total spent (excluding cancelled)
+    let totalSpent = 0;
+    let pendingPayments = 0;
+    allOrders.forEach(o => {
+      if (o.status !== 'CANCELLED') {
+        totalSpent += o.grandTotal;
+        if (o.status !== 'COMPLETED') {
+          pendingPayments += o.grandTotal;
+        }
+      }
+    });
 
     // 1. Order Status Distribution
     const orderStatusDistribution = [
@@ -182,15 +201,53 @@ export const getBuyerDashboard = async (req, res) => {
     const monthlyTrends = Object.values(monthlyDataMap);
 
     // 4. Recent Order Values
-    const recentOrderValues = allOrders.sort((a, b) => new Date(a.orderDate) - new Date(b.orderDate)).slice(-10).map(o => ({
+    const recentOrderValues = allOrders.sort((a, b) => new Date(a.orderDate).getTime() - new Date(b.orderDate).getTime()).slice(-10).map(o => ({
       name: o.orderNumber,
       amount: o.grandTotal
     }));
 
+    // Dynamic Categories
+    const categoriesList = await prisma.designcategory.findMany({
+      where: { deletedAt: null },
+      include: {
+        _count: {
+          select: { design: true }
+        },
+        design: {
+          take: 1,
+          where: { image: { not: null }, deletedAt: null }
+        }
+      }
+    });
+
+    const categories = categoriesList.map(cat => {
+      let image = 'https://images.unsplash.com/photo-1583391733958-d15ce69c8c19?auto=format&fit=crop&q=80&w=200&h=200';
+      if (cat.design && cat.design.length > 0 && cat.design[0].image) {
+        image = cat.design[0].image.split(',')[0].trim();
+      }
+      return {
+        id: cat.id,
+        name: cat.name,
+        count: cat._count.design + '+',
+        image: image
+      };
+    }).sort((a, b) => parseInt(b.count) - parseInt(a.count));
+
+    // Dynamic Credit Summary (assuming default limit of 1,000,000)
+    const creditLimit = 1000000;
+    const creditSummary = {
+      limit: creditLimit,
+      used: pendingPayments,
+      pending: pendingPayments,
+      available: Math.max(0, creditLimit - pendingPayments)
+    };
+
     return sendResponse(res, 200, true, 'Buyer Dashboard', {
-      summary: { totalOrders, pending, approved, completed },
+      summary: { totalOrders, pending, approved, completed, totalSpent },
       recentOrders,
       newArrivals,
+      categories,
+      creditSummary,
       charts: {
         orderStatusDistribution,
         monthlyTrends,
