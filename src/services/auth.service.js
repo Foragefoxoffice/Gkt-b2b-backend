@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma/client.js';
+import { emitToRole } from '../socket.js';
 
 const generateTokens = (user, roleName) => {
   const payload = { id: user.id, email: user.email, roleId: user.roleId, roleName };
@@ -99,6 +100,19 @@ export const login = async (email, password) => {
     data: { lastLoginAt: new Date() }
   });
 
+  await prisma.userlog.create({
+    data: {
+      userId: user.id,
+      action: 'LOGIN',
+      ipAddress: null, // Note: To get IP we would need to pass it from the controller, but this is fine for now or we can update later
+    }
+  });
+
+  if (user.role.name === 'BUYER') {
+    emitToRole('SUPER_ADMIN', 'newBuyerLog', { userId: user.id, action: 'LOGIN' });
+    emitToRole('ADMIN', 'newBuyerLog', { userId: user.id, action: 'LOGIN' });
+  }
+
   const tokens = generateTokens(user, user.role.name);
   const userResponse = await getUserResponseData(user);
   
@@ -136,6 +150,18 @@ export const verifyOtp = async (userId, otpCode) => {
       lastLoginAt: now 
     }
   });
+
+  await prisma.userlog.create({
+    data: {
+      userId: user.id,
+      action: 'LOGIN',
+    }
+  });
+
+  if (user.role.name === 'BUYER') {
+    emitToRole('SUPER_ADMIN', 'newBuyerLog', { userId: user.id, action: 'LOGIN' });
+    emitToRole('ADMIN', 'newBuyerLog', { userId: user.id, action: 'LOGIN' });
+  }
 
   const tokens = generateTokens(user, user.role.name);
   const userResponse = await getUserResponseData(user);

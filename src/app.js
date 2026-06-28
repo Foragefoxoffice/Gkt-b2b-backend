@@ -21,6 +21,7 @@ import dashboardRoutes from './routes/dashboard.route.js';
 import productRequestRoutes from './routes/productRequest.route.js';
 import userRoutes from './routes/user.route.js';
 import staffRoutes from './routes/staff.route.js';
+import userLogRoutes from './routes/userLog.route.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +56,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/product-requests', productRequestRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/user-logs', userLogRoutes);
 
 // Root Route
 app.get('/', (req, res) => {

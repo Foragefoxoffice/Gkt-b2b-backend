@@ -1,5 +1,8 @@
 import * as authService from '../services/auth.service.js';
 import { sendResponse } from '../utils/response.js';
+import jwt from 'jsonwebtoken';
+import prisma from '../prisma/client.js';
+import { emitToRole } from '../socket.js';
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -70,7 +73,30 @@ export const refreshToken = async (req, res) => {
   });
 };
 
-export const logout = (req, res) => {
+export const logout = async (req, res) => {
+  const token = req.cookies?.refreshToken || req.body?.refreshToken;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+      if (decoded && decoded.id) {
+        await prisma.userlog.create({
+          data: {
+            userId: decoded.id,
+            action: 'LOGOUT',
+            ipAddress: req.ip || req.connection.remoteAddress,
+          }
+        });
+        
+        if (decoded.roleName === 'BUYER') {
+          emitToRole('SUPER_ADMIN', 'newBuyerLog', { userId: decoded.id, action: 'LOGOUT' });
+          emitToRole('ADMIN', 'newBuyerLog', { userId: decoded.id, action: 'LOGOUT' });
+        }
+      }
+    } catch (error) {
+      // Ignore token verification errors on logout
+    }
+  }
+
   res.clearCookie('refreshToken');
   return sendResponse(res, 200, true, 'Logged out successfully');
 };

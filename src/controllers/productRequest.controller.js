@@ -60,12 +60,16 @@ export const createProductRequest = async (req, res) => {
     });
 
     // Notify Admins
-    emitToRole('ADMIN', 'notification', {
+    const notificationPayload = {
       type: 'PRODUCT_REQUEST_CREATED',
       title: 'New Product Request',
       message: `Request ${result.requestNumber} submitted by ${buyer.name}`,
       data: result
-    });
+    };
+    emitToRole('ADMIN', 'notification', notificationPayload);
+    emitToRole('SUPER_ADMIN', 'notification', notificationPayload);
+    emitToRole('MANAGER', 'notification', notificationPayload);
+    emitToRole('STAFF', 'notification', notificationPayload);
 
     // Notify Buyer
     emitToUser(req.user.id, 'notification', {
@@ -155,7 +159,7 @@ export const getProductRequestById = async (req, res) => {
 };
 
 export const updateProductRequestStatus = async (req, res) => {
-  const { status, loomId, designId, color } = req.body;
+  const { status, loomId, designId, color, adminRemarks } = req.body;
   const requestId = parseInt(req.params.id);
 
   if (req.user.roleName === 'BUYER') {
@@ -171,9 +175,14 @@ export const updateProductRequestStatus = async (req, res) => {
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
+      const dataToUpdate = { status };
+      if (adminRemarks !== undefined) {
+        dataToUpdate.adminRemarks = adminRemarks;
+      }
+
       const updatedReq = await tx.productrequest.update({
         where: { id: requestId },
-        data: { status },
+        data: dataToUpdate,
         include: { buyer: true, items: { include: { design: { include: { loom: { include: { weaver: true } } } } } } }
       });
 

@@ -38,8 +38,16 @@ export const createDesign = async (req, res) => {
     }
   });
 
-  import('../socket.js').then(({ getIO }) => {
-    try { getIO().emit('inventoryUpdated'); } catch (e) { }
+  import('../socket.js').then(({ getIO, emitToRole }) => {
+    try { 
+      getIO().emit('inventoryUpdated'); 
+      emitToRole('BUYER', 'notification', {
+        type: 'NEW_DESIGN',
+        title: 'New Design Added',
+        message: `A new design "${design.name}" (${design.code}) has been added to our catalog.`,
+        data: design
+      });
+    } catch (e) { }
   });
 
   return sendResponse(res, 201, true, 'Design created', design);

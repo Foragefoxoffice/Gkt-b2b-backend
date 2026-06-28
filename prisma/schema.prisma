@@ -29,7 +29,7 @@ model buyer {
   gst             String?
   pan             String?
   createdAt       DateTime         @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt       DateTime         @updatedAt
   deletedAt       DateTime?
   billingAddress  String?
   branchName      String?
@@ -55,7 +55,7 @@ model buyerbranch {
   state           String
   pincode         String
   createdAt       DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   buyer           buyer     @relation(fields: [buyerId], references: [id], onDelete: Cascade, map: "BuyerBranch_buyerId_fkey")
 
@@ -66,7 +66,7 @@ model cart {
   id        Int        @id @default(autoincrement())
   buyerId   Int        @unique(map: "Cart_buyerId_key")
   createdAt DateTime   @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime   @updatedAt
   buyer     buyer      @relation(fields: [buyerId], references: [id], onDelete: Cascade, map: "Cart_buyerId_fkey")
   items     cartitem[]
 }
@@ -91,7 +91,7 @@ model company {
   name      String    @unique(map: "Company_name_key")
   status    Boolean   @default(true)
   createdAt DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   logo      String?
   address   String?
@@ -112,7 +112,7 @@ model design {
   availableStock       Int                    @default(0)
   image                String?                @db.Text
   createdAt            DateTime               @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt            DateTime               @updatedAt
   deletedAt            DateTime?
   colorStock           String?                @db.Text
   imageColorMap        String?                @db.Text
@@ -132,7 +132,7 @@ model designcategory {
   code      String    @unique(map: "DesignCategory_code_key")
   name      String
   createdAt DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   design    design[]
 }
@@ -148,7 +148,7 @@ model dispatch {
   invoiceCopy     String?
   status          dispatch_status @default(PROCESSING)
   createdAt       DateTime        @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt       DateTime        @updatedAt
   deletedAt       DateTime?
   order           order           @relation(fields: [orderId], references: [id], map: "Dispatch_orderId_fkey")
   transporter     transporter     @relation(fields: [transporterId], references: [id], map: "Dispatch_transporterId_fkey")
@@ -164,7 +164,7 @@ model dispatchitem {
   orderItemId Int
   quantity    Int
   createdAt   DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt   DateTime @updatedAt
   dispatch    dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade, map: "DispatchItem_dispatchId_fkey")
 
   @@index([dispatchId], map: "DispatchItem_dispatchId_fkey")
@@ -180,7 +180,7 @@ model firm {
   email     String?
   status    Boolean   @default(true)
   createdAt DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   code      String?   @unique(map: "Firm_code_key")
   logo      String?
@@ -242,7 +242,7 @@ model order {
   remarks           String?
   status            order_status @default(PENDING)
   createdAt         DateTime     @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt         DateTime     @updatedAt
   deletedAt         DateTime?
   orderGivenBy      String?
   orderGivenByPhone String?
@@ -267,7 +267,7 @@ model orderitem {
   taxAmount  Float
   lineTotal  Float
   createdAt  DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt  DateTime @updatedAt
   color      String?
   design     design   @relation(fields: [designId], references: [id], map: "OrderItem_designId_fkey")
   order      order    @relation(fields: [orderId], references: [id], onDelete: Cascade, map: "OrderItem_orderId_fkey")
@@ -277,16 +277,17 @@ model orderitem {
 }
 
 model productrequest {
-  id                 Int                   @id @default(autoincrement())
-  requestNumber      String                @unique(map: "ProductRequest_requestNumber_key")
-  buyerId            Int
-  remarks            String?               @db.Text
-  status             productrequest_status @default(PENDING)
-  createdAt          DateTime              @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt          DateTime?
-  buyer              buyer                 @relation(fields: [buyerId], references: [id], map: "ProductRequest_buyerId_fkey")
-  items              productrequestitem[]
+  id            Int                   @id @default(autoincrement())
+  requestNumber String                @unique(map: "ProductRequest_requestNumber_key")
+  buyerId       Int
+  remarks       String?               @db.Text
+  status        productrequest_status @default(PENDING)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  deletedAt     DateTime?
+  adminRemarks  String?               @db.Text
+  buyer         buyer                 @relation(fields: [buyerId], references: [id], map: "ProductRequest_buyerId_fkey")
+  items         productrequestitem[]
 
   @@index([buyerId], map: "ProductRequest_buyerId_fkey")
 }
@@ -298,7 +299,7 @@ model productrequestitem {
   color            String?
   quantity         Int
   createdAt        DateTime       @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt        DateTime       @updatedAt
   design           design         @relation(fields: [designId], references: [id], map: "ProductRequestItem_designId_fkey")
   productrequest   productrequest @relation(fields: [productRequestId], references: [id], onDelete: Cascade, map: "ProductRequestItem_productRequestId_fkey")
 
@@ -310,7 +311,7 @@ model role {
   id        Int       @id @default(autoincrement())
   name      String    @unique(map: "Role_name_key")
   createdAt DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   user      user[]
 }
@@ -322,7 +323,7 @@ model transporter {
   email     String?
   address   String?
   createdAt DateTime   @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime   @updatedAt
   deletedAt DateTime?
   gstNumber String?
   dispatch  dispatch[]
@@ -338,12 +339,13 @@ model user {
   phone        String?
   avatar       String?
   createdAt    DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
   lastLoginAt  DateTime?
   otpCode      String?
   otpExpiresAt DateTime?
-  role         role      @relation(fields: [roleId], references: [id], map: "User_roleId_fkey")
+  role         role       @relation(fields: [roleId], references: [id], map: "User_roleId_fkey")
+  userlog      userlog[]
 
   @@index([roleId], map: "User_roleId_fkey")
 }
@@ -353,7 +355,7 @@ model weaver {
   code      String    @unique(map: "Weaver_code_key")
   name      String
   createdAt DateTime  @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   loom      loom[]
 }
@@ -385,3 +387,21 @@ enum order_status {
   COMPLETED
   CANCELLED
 }
+
+model userlog {
+  id        Int            @id @default(autoincrement())
+  userId    Int
+  action    userlog_action
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+  user      user           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserLog_userId_fkey")
+
+  @@index([userId], map: "UserLog_userId_fkey")
+}
+
+enum userlog_action {
+  LOGIN
+  LOGOUT
+}
+

@@ -181,12 +181,17 @@ export const createOrderFromCart = async (req, res) => {
     });
 
     // Notify Admins
-    emitToRole('ADMIN', 'notification', {
+    const notificationPayload = {
       type: 'ORDER_CREATED',
       title: 'New Order',
       message: `Order ${result.orderNumber} placed by ${buyer.name}`,
       data: result
-    });
+    };
+    emitToRole('ADMIN', 'notification', notificationPayload);
+    emitToRole('SUPER_ADMIN', 'notification', notificationPayload);
+    emitToRole('MANAGER', 'notification', notificationPayload);
+    emitToRole('STAFF', 'notification', notificationPayload);
+    emitToRole('DISPATCHER', 'notification', notificationPayload);
 
     // Notify Buyer
     emitToUser(req.user.id, 'notification', {
@@ -404,12 +409,17 @@ export const updateOrderStatus = async (req, res) => {
           });
         }
       } else {
-        emitToRole('ADMIN', 'notification', {
+        const cancelPayload = {
           type: 'ORDER_CANCELLED',
           title: 'Order Cancelled',
           message: `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}.`,
           data: order
-        });
+        };
+        emitToRole('ADMIN', 'notification', cancelPayload);
+        emitToRole('SUPER_ADMIN', 'notification', cancelPayload);
+        emitToRole('MANAGER', 'notification', cancelPayload);
+        emitToRole('STAFF', 'notification', cancelPayload);
+        emitToRole('DISPATCHER', 'notification', cancelPayload);
       }
 
       try {
