@@ -204,3 +204,37 @@ export const deleteBuyer = async (req, res) => {
   });
   return sendResponse(res, 200, true, 'Buyer deleted');
 };
+
+export const regeneratePassword = async (req, res) => {
+  const buyerId = parseInt(req.params.id);
+  
+  try {
+    const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
+    if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
+
+    if (!buyer.email) {
+      return sendResponse(res, 400, false, 'Buyer does not have an email address');
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: buyer.email } });
+    if (!user) {
+      return sendResponse(res, 404, false, 'User account not found for this buyer');
+    }
+
+    const generatedPassword = Math.random().toString(36).slice(-8) + Math.floor(Math.random() * 10);
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
+
+    const { sendCredentialsEmail } = await import('../services/email.service.js');
+    sendCredentialsEmail(buyer.email, buyer.name, generatedPassword).catch(e => console.error(e));
+
+    return sendResponse(res, 200, true, 'Password regenerated and sent to email successfully');
+  } catch (error) {
+    console.error('Regenerate password error:', error);
+    return sendResponse(res, 500, false, 'Internal server error');
+  }
+};

@@ -10,6 +10,7 @@ router.post('/', roleGuard(ADMIN_ROLES), buyerController.createBuyer);
 router.get('/', buyerController.getBuyers);
 router.get('/:id', buyerController.getBuyerById);
 router.put('/:id', roleGuard(ADMIN_ROLES), buyerController.updateBuyer);
+router.put('/:id/regenerate-password', roleGuard(ADMIN_ROLES), buyerController.regeneratePassword);
 router.delete('/:id', roleGuard(ADMIN_ROLES), buyerController.deleteBuyer);
 
 export default router;
