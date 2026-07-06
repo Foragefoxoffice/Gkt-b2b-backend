@@ -1,0 +1,240 @@
+import prisma from '../prisma/client.js';
+import { sendResponse } from '../utils/response.js';
+import bcrypt from 'bcrypt';
+
+// Generate Buyer Code (e.g. BUY-0001)
+const generateBuyerCode = async () => {
+  const lastBuyer = await prisma.buyer.findFirst({
+    orderBy: { id: 'desc' }
+  });
+  if (!lastBuyer || !lastBuyer.code) return 'BUY-0001';
+
+  const parts = lastBuyer.code.split('-');
+  const lastNum = parts.length > 1 ? parseInt(parts[1]) : NaN;
+
+  if (isNaN(lastNum)) {
+    // If the last code wasn't in the expected format, just count total buyers or fallback
+    const count = await prisma.buyer.count();
+    return `BUY-${String(count + 1).padStart(4, '0')}`;
+  }
+
+  return `BUY-${String(lastNum + 1).padStart(4, '0')}`;
+};
+
+export const createBuyer = async (req, res) => {
+  const { code, name, companyId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress, buyerbranch, password } = req.body;
+
+  if (email) {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return sendResponse(res, 400, false, 'A user with this email already exists');
+    }
+  }
+
+  if (!companyId) {
+    return sendResponse(res, 400, false, 'Company is required');
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const finalCode = code || await generateBuyerCode();
+
+      // Resolve firm from companyId
+      let firm = await tx.firm.findFirst({ where: { companyId: parseInt(companyId), deletedAt: null } });
+      if (!firm) {
+        const company = await tx.company.findUnique({ where: { id: parseInt(companyId) } });
+        if (!company) throw new Error('Company not found');
+        firm = await tx.firm.create({
+          data: {
+            name: company.name,
+            code: 'F-' + company.id,
+            companyId: company.id
+          }
+        });
+      }
+
+      const buyer = await tx.buyer.create({
+        data: {
+          code: finalCode, name, firmId: firm.id, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress,
+          buyerbranch: {
+            create: buyerbranch || []
+          }
+        },
+        include: { buyerbranch: true }
+      });
+
+      // Auto-generate User credentials for buyer
+      if (email) {
+        const buyerRole = await tx.role.findUnique({ where: { name: 'BUYER' } });
+        if (buyerRole) {
+          const generatedPassword = Math.random().toString(36).slice(-8) + Math.floor(Math.random() * 10);
+          const defaultPassword = await bcrypt.hash(generatedPassword, 10);
+          await tx.user.create({
+            data: {
+              email: email,
+              password: defaultPassword,
+              name: name,
+              roleId: buyerRole.id,
+              phone: mobile
+            }
+          });
+
+          // Send credentials via email
+          const { sendCredentialsEmail } = await import('../services/email.service.js');
+          // intentionally non-blocking email send
+          sendCredentialsEmail(email, name, generatedPassword).catch(e => console.error(e));
+        }
+      }
+
+      return buyer;
+    });
+
+    return sendResponse(res, 201, true, 'Buyer created successfully', result);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getBuyers = async (req, res) => {
+  const { search, firmId, page = 1, limit = 20 } = req.query;
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const take = parseInt(limit);
+
+  const where = { deletedAt: null };
+  if (search) {
+    where.OR = [
+      { name: { contains: search } },
+      { code: { contains: search } },
+      { email: { contains: search } }
+    ];
+  }
+  if (firmId) {
+    where.firmId = parseInt(firmId);
+  }
+
+  const [buyers, total] = await Promise.all([
+    prisma.buyer.findMany({
+      where, skip, take, orderBy: { createdAt: 'desc' },
+      include: { firm: { include: { company: true } }, buyerbranch: true }
+    }),
+    prisma.buyer.count({ where })
+  ]);
+
+  return sendResponse(res, 200, true, 'Buyers retrieved', buyers, {
+    page: parseInt(page), limit: parseInt(limit), total,
+    totalPages: Math.ceil(total / take)
+  });
+};
+
+export const getBuyerById = async (req, res) => {
+  const buyer = await prisma.buyer.findUnique({
+    where: { id: parseInt(req.params.id) },
+    include: { firm: { include: { company: true } }, buyerbranch: true }
+  });
+
+  if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
+  return sendResponse(res, 200, true, 'Buyer retrieved', buyer);
+};
+
+export const updateBuyer = async (req, res) => {
+  const { code, name, companyId, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress } = req.body;
+  const buyerId = parseInt(req.params.id);
+
+  const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
+  if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
+
+  if (email && email !== buyer.email) {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return sendResponse(res, 400, false, 'A user with this email already exists');
+    }
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    let firmIdToUse = buyer.firmId;
+    if (companyId) {
+      let firm = await tx.firm.findFirst({ where: { companyId: parseInt(companyId), deletedAt: null } });
+      if (!firm) {
+        const company = await tx.company.findUnique({ where: { id: parseInt(companyId) } });
+        if (!company) throw new Error('Company not found');
+        firm = await tx.firm.create({
+          data: {
+            name: company.name,
+            code: 'F-' + company.id,
+            companyId: company.id
+          }
+        });
+      }
+      firmIdToUse = firm.id;
+    }
+
+    const updatedBuyer = await tx.buyer.update({
+      where: { id: buyerId },
+      data: { code, name, firmId: firmIdToUse, mobile, mobile2, email, gst, pan, stateCode, branchName, billingAddress, shippingAddress }
+    });
+
+    if (email && buyer.email && email !== buyer.email) {
+      const existingUser = await tx.user.findUnique({ where: { email: buyer.email } });
+      if (existingUser) {
+        const newEmailUser = await tx.user.findUnique({ where: { email } });
+        if (!newEmailUser) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: { email }
+          });
+        }
+      }
+    }
+
+    return updatedBuyer;
+  });
+
+  return sendResponse(res, 200, true, 'Buyer updated', result);
+};
+
+export const deleteBuyer = async (req, res) => {
+  const buyerId = parseInt(req.params.id);
+  const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
+  if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
+
+  await prisma.buyer.update({
+    where: { id: buyerId },
+    data: { deletedAt: new Date() }
+  });
+  return sendResponse(res, 200, true, 'Buyer deleted');
+};
+
+export const regeneratePassword = async (req, res) => {
+  const buyerId = parseInt(req.params.id);
+  
+  try {
+    const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
+    if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
+
+    if (!buyer.email) {
+      return sendResponse(res, 400, false, 'Buyer does not have an email address');
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: buyer.email } });
+    if (!user) {
+      return sendResponse(res, 404, false, 'User account not found for this buyer');
+    }
+
+    const generatedPassword = Math.random().toString(36).slice(-8) + Math.floor(Math.random() * 10);
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword }
+    });
+
+    const { sendCredentialsEmail } = await import('../services/email.service.js');
+    sendCredentialsEmail(buyer.email, buyer.name, generatedPassword).catch(e => console.error(e));
+
+    return sendResponse(res, 200, true, 'Password regenerated and sent to email successfully');
+  } catch (error) {
+    console.error('Regenerate password error:', error);
+    return sendResponse(res, 500, false, 'Internal server error');
+  }
+};

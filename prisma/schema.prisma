@@ -1,0 +1,408 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model approval {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  approvedBy Int
+  status     String
+  remarks    String?
+  createdAt  DateTime @default(now())
+  order      order    @relation(fields: [orderId], references: [id], onDelete: Cascade, map: "Approval_orderId_fkey")
+
+  @@index([orderId], map: "Approval_orderId_fkey")
+}
+
+model buyer {
+  id              Int              @id @default(autoincrement())
+  code            String           @unique(map: "Buyer_code_key")
+  name            String
+  firmId          Int
+  mobile          String?
+  email           String?
+  gst             String?
+  pan             String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  billingAddress  String?
+  branchName      String?
+  mobile2         String?
+  shippingAddress String?
+  stateCode       String?
+  firm            firm             @relation(fields: [firmId], references: [id], map: "Buyer_firmId_fkey")
+  buyerbranch     buyerbranch[]
+  cart            cart?
+  order           order[]
+  productrequest  productrequest[]
+
+  @@index([firmId], map: "Buyer_firmId_fkey")
+}
+
+model buyerbranch {
+  id              Int       @id @default(autoincrement())
+  buyerId         Int
+  branchName      String
+  billingAddress  String
+  shippingAddress String
+  city            String
+  state           String
+  pincode         String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  buyer           buyer     @relation(fields: [buyerId], references: [id], onDelete: Cascade, map: "BuyerBranch_buyerId_fkey")
+
+  @@index([buyerId], map: "BuyerBranch_buyerId_fkey")
+}
+
+model cart {
+  id        Int        @id @default(autoincrement())
+  buyerId   Int        @unique(map: "Cart_buyerId_key")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  buyer     buyer      @relation(fields: [buyerId], references: [id], onDelete: Cascade, map: "Cart_buyerId_fkey")
+  items     cartitem[]
+}
+
+model cartitem {
+  id        Int      @id @default(autoincrement())
+  cartId    Int
+  designId  Int
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  color     String?
+  cart      cart     @relation(fields: [cartId], references: [id], onDelete: Cascade, map: "CartItem_cartId_fkey")
+  design    design   @relation(fields: [designId], references: [id], map: "CartItem_designId_fkey")
+
+  @@index([cartId], map: "CartItem_cartId_fkey")
+  @@index([designId], map: "CartItem_designId_fkey")
+}
+
+model company {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique(map: "Company_name_key")
+  status    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  logo      String?
+  address   String?
+  gst       String?
+  phone     String?
+  email     String?
+  firm      firm[]
+}
+
+model design {
+  id                   Int                    @id @default(autoincrement())
+  code                 String                 @unique(map: "Design_code_key")
+  name                 String
+  categoryId           Int
+  color                String?
+  rate                 Float
+  gstPercent           Float                  @default(5)
+  availableStock       Int                    @default(0)
+  image                String?                @db.Text
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  deletedAt            DateTime?
+  colorStock           String?                @db.Text
+  imageColorMap        String?                @db.Text
+  material             String?
+  cartitem             cartitem[]
+  designcategory       designcategory         @relation(fields: [categoryId], references: [id], map: "Design_categoryId_fkey")
+  inventorytransaction inventorytransaction[]
+  loom                 loom[]
+  orderitem            orderitem[]
+  productrequestitem   productrequestitem[]
+
+  @@index([categoryId], map: "Design_categoryId_fkey")
+}
+
+model designcategory {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique(map: "DesignCategory_code_key")
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  design    design[]
+}
+
+model dispatch {
+  id              Int             @id @default(autoincrement())
+  dispatchNumber  String          @unique(map: "Dispatch_dispatchNumber_key")
+  orderId         Int
+  transporterId   Int
+  numberOfBundles Int
+  trackingNumber  String?
+  bookingCopy     String?
+  invoiceCopy     String?
+  status          dispatch_status @default(PROCESSING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+  order           order           @relation(fields: [orderId], references: [id], map: "Dispatch_orderId_fkey")
+  transporter     transporter     @relation(fields: [transporterId], references: [id], map: "Dispatch_transporterId_fkey")
+  items           dispatchitem[]
+
+  @@index([orderId], map: "Dispatch_orderId_fkey")
+  @@index([transporterId], map: "Dispatch_transporterId_fkey")
+}
+
+model dispatchitem {
+  id          Int      @id @default(autoincrement())
+  dispatchId  Int
+  orderItemId Int
+  quantity    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  dispatch    dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade, map: "DispatchItem_dispatchId_fkey")
+
+  @@index([dispatchId], map: "DispatchItem_dispatchId_fkey")
+}
+
+model firm {
+  id        Int       @id @default(autoincrement())
+  name      String
+  address   String?
+  gstNumber String?
+  panNumber String?
+  mobile    String?
+  email     String?
+  status    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  code      String?   @unique(map: "Firm_code_key")
+  logo      String?
+  mobile2   String?
+  stateCode String?
+  website   String?
+  companyId Int?
+  buyer     buyer[]
+  company   company?  @relation(fields: [companyId], references: [id], map: "Firm_companyId_fkey")
+
+  @@index([companyId], map: "Firm_companyId_fkey")
+}
+
+model inventorytransaction {
+  id        Int                       @id @default(autoincrement())
+  designId  Int
+  type      inventorytransaction_type
+  quantity  Int
+  orderRef  String?
+  createdAt DateTime                  @default(now())
+  color     String?
+  design    design                    @relation(fields: [designId], references: [id], map: "InventoryTransaction_designId_fkey")
+
+  @@index([designId], map: "InventoryTransaction_designId_fkey")
+}
+
+model loom {
+  id            Int     @id @default(autoincrement())
+  loomNo        String
+  weaverId      Int
+  designId      Int?
+  assignedColor String?
+  design        design? @relation(fields: [designId], references: [id], map: "Loom_designId_fkey")
+  weaver        weaver  @relation(fields: [weaverId], references: [id], onDelete: Cascade, map: "Loom_weaverId_fkey")
+
+  @@index([designId], map: "Loom_designId_fkey")
+  @@index([weaverId], map: "Loom_weaverId_fkey")
+}
+
+model notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  type      String
+  message   String
+  channel   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model order {
+  id                Int          @id @default(autoincrement())
+  orderNumber       String       @unique(map: "Order_orderNumber_key")
+  buyerId           Int
+  transporterId     Int?
+  orderDate         DateTime     @default(now())
+  gstAmount         Float        @default(0)
+  totalAmount       Float        @default(0)
+  grandTotal        Float        @default(0)
+  remarks           String?
+  status            order_status @default(PENDING)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
+  orderGivenBy      String?
+  orderGivenByPhone String?
+  signature         String?
+  approval          approval[]
+  dispatch          dispatch[]
+  buyer             buyer        @relation(fields: [buyerId], references: [id], map: "Order_buyerId_fkey")
+  transporter       transporter? @relation(fields: [transporterId], references: [id], map: "Order_transporterId_fkey")
+  items             orderitem[]
+
+  @@index([buyerId], map: "Order_buyerId_fkey")
+  @@index([transporterId], map: "Order_transporterId_fkey")
+}
+
+model orderitem {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  designId   Int
+  quantity   Int
+  rate       Float
+  taxPercent Float
+  taxAmount  Float
+  lineTotal  Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  color      String?
+  design     design   @relation(fields: [designId], references: [id], map: "OrderItem_designId_fkey")
+  order      order    @relation(fields: [orderId], references: [id], onDelete: Cascade, map: "OrderItem_orderId_fkey")
+
+  @@index([designId], map: "OrderItem_designId_fkey")
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+}
+
+model productrequest {
+  id            Int                   @id @default(autoincrement())
+  requestNumber String                @unique(map: "ProductRequest_requestNumber_key")
+  buyerId       Int
+  remarks       String?               @db.Text
+  status        productrequest_status @default(PENDING)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  deletedAt     DateTime?
+  adminRemarks  String?               @db.Text
+  buyer         buyer                 @relation(fields: [buyerId], references: [id], map: "ProductRequest_buyerId_fkey")
+  items         productrequestitem[]
+
+  @@index([buyerId], map: "ProductRequest_buyerId_fkey")
+}
+
+model productrequestitem {
+  id               Int            @id @default(autoincrement())
+  productRequestId Int
+  designId         Int
+  color            String?
+  quantity         Int
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  design           design         @relation(fields: [designId], references: [id], map: "ProductRequestItem_designId_fkey")
+  productrequest   productrequest @relation(fields: [productRequestId], references: [id], onDelete: Cascade, map: "ProductRequestItem_productRequestId_fkey")
+
+  @@index([designId], map: "ProductRequestItem_designId_fkey")
+  @@index([productRequestId], map: "ProductRequestItem_productRequestId_fkey")
+}
+
+model role {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique(map: "Role_name_key")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  user      user[]
+}
+
+model transporter {
+  id        Int        @id @default(autoincrement())
+  name      String
+  mobile    String?
+  email     String?
+  address   String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
+  gstNumber String?
+  dispatch  dispatch[]
+  order     order[]
+}
+
+model user {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique(map: "User_email_key")
+  password     String
+  name         String
+  roleId       Int
+  phone        String?
+  avatar       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  lastLoginAt  DateTime?
+  otpCode      String?
+  otpExpiresAt DateTime?
+  fcmToken     String?
+  role         role       @relation(fields: [roleId], references: [id], map: "User_roleId_fkey")
+  userlog      userlog[]
+
+  @@index([roleId], map: "User_roleId_fkey")
+}
+
+model weaver {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique(map: "Weaver_code_key")
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  loom      loom[]
+}
+
+enum inventorytransaction_type {
+  ORDER
+  RETURN
+  ADJUSTMENT
+}
+
+enum productrequest_status {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+enum dispatch_status {
+  PROCESSING
+  DISPATCHED
+  DELIVERED
+}
+
+enum order_status {
+  PENDING
+  APPROVED
+  PROCESSING
+  DISPATCHED
+  COMPLETED
+  CANCELLED
+}
+
+model userlog {
+  id        Int            @id @default(autoincrement())
+  userId    Int
+  action    userlog_action
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime       @default(now())
+  user      user           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserLog_userId_fkey")
+
+  @@index([userId], map: "UserLog_userId_fkey")
+}
+
+enum userlog_action {
+  LOGIN
+  LOGOUT
+}
+
