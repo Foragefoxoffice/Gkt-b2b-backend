@@ -39,13 +39,28 @@ export const createDesign = async (req, res) => {
   });
 
   import('../socket.js').then(({ getIO, emitToRole }) => {
-    try { 
-      getIO().emit('inventoryUpdated'); 
+    try {
+      getIO().emit('inventoryUpdated');
       emitToRole('BUYER', 'notification', {
         type: 'NEW_DESIGN',
         title: 'New Design Added',
         message: `A new design "${design.name}" (${design.code}) has been added to our catalog.`,
         data: design
+      });
+
+      import('../services/firebase.service.js').then(({ sendPushNotification }) => {
+        prisma.user.findMany({
+          where: { role: { name: 'BUYER' }, fcmToken: { not: null } }
+        }).then(buyers => {
+          buyers.forEach(buyer => {
+            sendPushNotification(
+              buyer.fcmToken,
+              'New Design Added',
+              `A new design "${design.name}" (${design.code}) has been added. Rate: ₹${design.rate}`,
+              { designId: String(design.id), type: 'NEW_DESIGN' }
+            ).catch(err => console.error('Failed to send push notification:', err));
+          });
+        }).catch(err => console.error('Failed to fetch buyers for push notification:', err));
       });
     } catch (e) { }
   });
@@ -185,6 +200,21 @@ export const updateDesign = async (req, res) => {
         title: 'Stock Updated',
         message: `Stock for design "${updated.name}" (${updated.code}) has been updated.`,
         data: updated
+      });
+
+      import('../services/firebase.service.js').then(({ sendPushNotification }) => {
+        prisma.user.findMany({
+          where: { role: { name: 'BUYER' }, fcmToken: { not: null } }
+        }).then(buyers => {
+          buyers.forEach(buyer => {
+            sendPushNotification(
+              buyer.fcmToken,
+              'Stock Updated',
+              `Stock for design "${updated.name}" (${updated.code}) has been updated.`,
+              { designId: String(updated.id), type: 'STOCK_UPDATED' }
+            ).catch(err => console.error('Failed to send push notification:', err));
+          });
+        }).catch(err => console.error('Failed to fetch buyers for push notification:', err));
       });
     }
   });

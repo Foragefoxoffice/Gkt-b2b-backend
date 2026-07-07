@@ -181,26 +181,55 @@ export const createOrderFromCart = async (req, res) => {
       return fullOrder;
     });
 
-    // Notify Admins
+    // Notify Admins via Socket
     const notificationPayload = {
       type: 'ORDER_CREATED',
       title: 'New Order',
-      message: `Order ${result.orderNumber} placed by ${buyer.name}`,
+      message: `New order ${result.orderNumber} placed by ${buyer.name}. Total Amount: ₹${result.grandTotal}.`,
       data: result
     };
-    emitToRole('ADMIN', 'notification', notificationPayload);
-    emitToRole('SUPER_ADMIN', 'notification', notificationPayload);
-    emitToRole('MANAGER', 'notification', notificationPayload);
-    emitToRole('STAFF', 'notification', notificationPayload);
-    emitToRole('DISPATCHER', 'notification', notificationPayload);
+    const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF', 'DISPATCHER'];
+    adminRoles.forEach(role => emitToRole(role, 'notification', notificationPayload));
 
-    // Notify Buyer
+    // Notify Admins via Push Notification
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { name: { in: adminRoles } }, fcmToken: { not: null } }
+      });
+      admins.forEach(admin => {
+        sendPushNotification(
+          admin.fcmToken,
+          'New Order',
+          `New order ${result.orderNumber} placed by ${buyer.name}. Total Amount: ₹${result.grandTotal}.`,
+          { orderId: String(result.id), type: 'ORDER_CREATED' }
+        ).catch(err => console.error('Failed to send admin push notification:', err));
+      });
+    } catch (e) {
+      console.error('Failed to fetch admins for push notification:', e);
+    }
+
+    // Notify Buyer via Socket
     emitToUser(req.user.id, 'notification', {
       type: 'ORDER_CREATED',
       title: 'Order Placed',
-      message: `Your order ${result.orderNumber} has been placed successfully.`,
+      message: `Your order ${result.orderNumber} has been placed successfully. Total Amount: ₹${result.grandTotal}.`,
       data: result
     });
+
+    // Notify Buyer via Push Notification
+    try {
+      const buyerUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (buyerUser && buyerUser.fcmToken) {
+        sendPushNotification(
+          buyerUser.fcmToken,
+          'Order Placed',
+          `Your order ${result.orderNumber} has been placed successfully. Total Amount: ₹${result.grandTotal}.`,
+          { orderId: String(result.id), type: 'ORDER_CREATED' }
+        ).catch(err => console.error('Failed to send buyer push notification:', err));
+      }
+    } catch (e) {
+      console.error('Failed to fetch buyer for push notification:', e);
+    }
 
     try {
       getIO().emit('inventoryUpdated');
@@ -405,22 +434,43 @@ export const updateOrderStatus = async (req, res) => {
           emitToUser(buyerUser.id, 'notification', {
             type: 'ORDER_CANCELLED',
             title: 'Order Cancelled',
-            message: `Your order ${order.orderNumber} has been cancelled by Admin.`,
+            message: `Your order ${order.orderNumber} has been cancelled by Admin. Reason: ${remarks || 'Not specified'}.`,
             data: order
           });
+          if (buyerUser.fcmToken) {
+            sendPushNotification(
+              buyerUser.fcmToken,
+              'Order Cancelled',
+              `Your order ${order.orderNumber} has been cancelled by Admin. Reason: ${remarks || 'Not specified'}.`,
+              { orderId: String(order.id), type: 'ORDER_CANCELLED' }
+            ).catch(err => console.error('Failed to send push notification:', err));
+          }
         }
       } else {
         const cancelPayload = {
           type: 'ORDER_CANCELLED',
           title: 'Order Cancelled',
-          message: `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}.`,
+          message: `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}. Reason: ${remarks || 'Not specified'}.`,
           data: order
         };
-        emitToRole('ADMIN', 'notification', cancelPayload);
-        emitToRole('SUPER_ADMIN', 'notification', cancelPayload);
-        emitToRole('MANAGER', 'notification', cancelPayload);
-        emitToRole('STAFF', 'notification', cancelPayload);
-        emitToRole('DISPATCHER', 'notification', cancelPayload);
+        const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF', 'DISPATCHER'];
+        adminRoles.forEach(role => emitToRole(role, 'notification', cancelPayload));
+        
+        try {
+          const admins = await prisma.user.findMany({
+            where: { role: { name: { in: adminRoles } }, fcmToken: { not: null } }
+          });
+          admins.forEach(admin => {
+            sendPushNotification(
+              admin.fcmToken,
+              'Order Cancelled',
+              `Order ${order.orderNumber} has been cancelled by ${order.buyer.name}. Reason: ${remarks || 'Not specified'}.`,
+              { orderId: String(order.id), type: 'ORDER_CANCELLED' }
+            ).catch(err => console.error('Failed to send admin push notification:', err));
+          });
+        } catch (e) {
+          console.error('Failed to fetch admins for push notification:', e);
+        }
       }
 
       try {
@@ -455,7 +505,7 @@ export const updateOrderStatus = async (req, res) => {
         emitToUser(buyerUser.id, 'notification', {
           type: 'ORDER_PROCESSING',
           title: 'Order Approved',
-          message: `Your order ${order.orderNumber} is now processing.`,
+          message: `Your order ${order.orderNumber} is now processing and being prepared for dispatch.`,
           data: order
         });
         
@@ -463,7 +513,7 @@ export const updateOrderStatus = async (req, res) => {
           sendPushNotification(
             buyerUser.fcmToken,
             'Order Approved',
-            `Your order ${order.orderNumber} is now processing.`,
+            `Your order ${order.orderNumber} is now processing and being prepared for dispatch.`,
             { orderId: String(order.id), type: 'ORDER_PROCESSING' }
           ).catch(err => console.error('Failed to send push notification:', err));
         }
