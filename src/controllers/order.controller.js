@@ -465,7 +465,7 @@ export const updateOrderStatus = async (req, res) => {
             'Order Approved',
             `Your order ${order.orderNumber} is now processing.`,
             { orderId: String(order.id), type: 'ORDER_PROCESSING' }
-          );
+          ).catch(err => console.error('Failed to send push notification:', err));
         }
       }
 

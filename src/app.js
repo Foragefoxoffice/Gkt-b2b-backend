@@ -6,6 +6,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 
+// Fix BigInt serialization globally
+BigInt.prototype.toJSON = function () {
+  return Number(this);
+};
+
 import authRoutes from './routes/auth.route.js';
 import firmRoutes from './routes/firm.route.js';
 import companyRoutes from './routes/company.route.js';
