@@ -8,7 +8,7 @@ export const initFirebaseAdmin = async () => {
     if (admin.apps.length > 0) return; // Already initialized
 
     let credential;
-    
+
     // Check if the environment variable is set
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       try {
@@ -67,20 +67,28 @@ export const sendPushNotification = async (token, title, body, data = {}) => {
     console.warn('⚠️ No FCM token provided for push notification');
     return false;
   }
-  
+
   if (admin.apps.length === 0) {
     console.warn('⚠️ Firebase Admin SDK not initialized, cannot send push notification');
     return false;
   }
 
   const message = {
+    // Including 'notification' and 'android.priority: high' forces Google Play Services
+    // to display the notification directly, bypassing Xiaomi/Vivo/Oppo battery killers!
     notification: {
-      title,
-      body,
+      title: title || 'New Notification',
+      body: body || 'You have a new message',
+    },
+    android: {
+      priority: 'high',
+      notification: {
+        channelId: 'default_channel',
+      },
     },
     data: {
       ...data,
-      click_action: 'FLUTTER_NOTIFICATION_CLICK', // Common fallback click action
+      click_action: 'FLUTTER_NOTIFICATION_CLICK',
     },
     token,
   };
