@@ -7,7 +7,8 @@ const generateTokens = (user, roleName) => {
   const payload = { id: user.id, email: user.email, roleId: user.roleId, roleName };
   
   const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '15m' });
-  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+  const refreshExpiresIn = roleName === 'BUYER' ? '3d' : '7d';
+  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: refreshExpiresIn });
   
   return { accessToken, refreshToken };
 };
@@ -59,12 +60,12 @@ export const login = async (email, password) => {
   // OTP Verification logic for BUYER role
   if (user.role.name === 'BUYER') {
     const now = new Date();
-    // Check if lastLoginAt is null or more than 24 hours ago
+    // Check if lastLoginAt is null or more than 72 hours ago
     const hoursSinceLastLogin = user.lastLoginAt 
       ? (now.getTime() - new Date(user.lastLoginAt).getTime()) / (1000 * 60 * 60)
       : Infinity;
 
-    if (hoursSinceLastLogin >= 24) {
+    if (hoursSinceLastLogin >= 72) {
       // Generate a 6-digit OTP
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpExpiresAt = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes from now

@@ -30,7 +30,14 @@ export const initFirebaseAdmin = async () => {
       try {
         const fs = await import('fs');
         const path = await import('path');
-        const filePath = path.resolve(process.cwd(), 'firebase-service-account.json');
+        const { fileURLToPath } = await import('url');
+        
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        
+        // This file is in src/services/firebase.service.js, so the root is 2 levels up
+        const filePath = path.resolve(__dirname, '../../firebase-service-account.json');
+        
         if (fs.existsSync(filePath)) {
           const fileContent = fs.readFileSync(filePath, 'utf8');
           const serviceAccount = JSON.parse(fileContent);
