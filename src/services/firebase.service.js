@@ -86,9 +86,25 @@ export const sendPushNotification = async (token, title, body, data = {}) => {
         channelId: 'default_channel',
       },
     },
+    webpush: {
+      headers: {
+        Urgency: 'high',
+      },
+      notification: {
+        title: title || 'New Notification',
+        body: body || 'You have a new message',
+        icon: '/AmbigaaSilks_logo.png',
+        badge: '/AmbigaaSilks_logo.png',
+        requireInteraction: false
+      },
+      fcmOptions: {
+        link: '/' // When notification is clicked, open the app
+      }
+    },
     data: {
       ...data,
-      click_action: 'FLUTTER_NOTIFICATION_CLICK',
+      title: title || 'New Notification',
+      body: body || 'You have a new message',
     },
     token,
   };
