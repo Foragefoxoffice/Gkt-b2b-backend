@@ -97,13 +97,6 @@ export const sendPushNotification = async (token, title, body, data = {}) => {
       headers: {
         Urgency: 'high',
       },
-      notification: {
-        title: title || 'New Notification',
-        body: body || 'You have a new message',
-        icon: '/AmbigaaSilks_logo.png',
-        badge: '/AmbigaaSilks_logo.png',
-        requireInteraction: false
-      },
       fcmOptions: {
         link: '/' // When notification is clicked, open the app
       }
