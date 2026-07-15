@@ -1,5 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
+import { sendPushNotification } from '../services/firebase.service.js';
 
 
 const generateDispatchNumber = async () => {
@@ -49,6 +50,9 @@ export const createDispatch = async (req, res) => {
         message: `Your order ${order.orderNumber} has been dispatched in ${numberOfBundles} bundle(s).`,
         data: dispatch
       });
+      if (buyerUser.fcmToken) {
+        sendPushNotification(buyerUser.fcmToken, 'Order Dispatched', `Your order ${order.orderNumber} has been dispatched in ${numberOfBundles} bundle(s).`, { type: 'DISPATCH_CREATED', dispatchId: String(dispatch.id) }).catch(() => {});
+      }
     });
   }
 
@@ -99,6 +103,9 @@ export const updateDispatchStatus = async (req, res) => {
         message: `Dispatch for order ${dispatch.order.orderNumber} is now marked as ${status}.`,
         data: dispatch
       });
+      if (buyerUser.fcmToken) {
+        sendPushNotification(buyerUser.fcmToken, 'Dispatch Update', `Dispatch for order ${dispatch.order.orderNumber} is now marked as ${status}.`, { type: 'DISPATCH_UPDATED', dispatchId: String(dispatch.id) }).catch(() => {});
+      }
     });
   }
 

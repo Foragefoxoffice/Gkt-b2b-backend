@@ -3,6 +3,7 @@ import { sendResponse } from '../utils/response.js';
 import { emitToRole, emitToUser, getIO } from '../socket.js';
 
 import nodemailer from 'nodemailer';
+import { sendPushNotification } from '../services/firebase.service.js';
 
 const generateOrderNumber = async (tx) => {
   const client = tx || prisma;
@@ -190,6 +191,15 @@ export const createOrderFromCart = async (req, res) => {
     };
     const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF', 'DISPATCHER'];
     adminRoles.forEach(role => emitToRole(role, 'notification', notificationPayload));
+    
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { name: { in: adminRoles } }, fcmToken: { not: null } }
+      });
+      admins.forEach(admin => {
+        sendPushNotification(admin.fcmToken, 'New Order', `New order ${result.orderNumber} placed by ${buyer.name}. Total Amount: ₹${result.grandTotal}.`, { type: 'ORDER_CREATED', orderId: String(result.id) }).catch(() => {});
+      });
+    } catch(e) {}
 
     // Notify Buyer via Socket
     emitToUser(req.user.id, 'notification', {
@@ -198,6 +208,12 @@ export const createOrderFromCart = async (req, res) => {
       message: `Your order ${result.orderNumber} has been placed successfully. Total Amount: ₹${result.grandTotal}.`,
       data: result
     });
+    try {
+      const buyerUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (buyerUser && buyerUser.fcmToken) {
+        sendPushNotification(buyerUser.fcmToken, 'Order Placed', `Your order ${result.orderNumber} has been placed successfully. Total Amount: ₹${result.grandTotal}.`, { type: 'ORDER_CREATED', orderId: String(result.id) }).catch(() => {});
+      }
+    } catch(e) {}
 
     try {
       getIO().emit('inventoryUpdated');
@@ -405,6 +421,9 @@ export const updateOrderStatus = async (req, res) => {
             message: `Your order ${order.orderNumber} has been cancelled by Admin. Reason: ${remarks || 'Not specified'}.`,
             data: order
           });
+          if (buyerUser.fcmToken) {
+            sendPushNotification(buyerUser.fcmToken, 'Order Cancelled', `Your order ${order.orderNumber} has been cancelled by Admin. Reason: ${remarks || 'Not specified'}.`, { type: 'ORDER_CANCELLED', orderId: String(order.id) }).catch(() => {});
+          }
         }
       } else {
         const cancelPayload = {
@@ -415,6 +434,12 @@ export const updateOrderStatus = async (req, res) => {
         };
         const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF', 'DISPATCHER'];
         adminRoles.forEach(role => emitToRole(role, 'notification', cancelPayload));
+        try {
+          const admins = await prisma.user.findMany({ where: { role: { name: { in: adminRoles } }, fcmToken: { not: null } } });
+          admins.forEach(admin => {
+            sendPushNotification(admin.fcmToken, 'Order Cancelled', cancelPayload.message, { type: 'ORDER_CANCELLED', orderId: String(order.id) }).catch(() => {});
+          });
+        } catch(e) {}
       }
 
       try {
@@ -452,6 +477,9 @@ export const updateOrderStatus = async (req, res) => {
           message: `Your order ${order.orderNumber} is now processing and being prepared for dispatch.`,
           data: order
         });
+        if (buyerUser.fcmToken) {
+          sendPushNotification(buyerUser.fcmToken, 'Order Approved', `Your order ${order.orderNumber} is now processing and being prepared for dispatch.`, { type: 'ORDER_PROCESSING', orderId: String(order.id) }).catch(() => {});
+        }
       }
 
       return sendResponse(res, 200, true, 'Order approved and processing started');
@@ -549,6 +577,12 @@ export const deleteOrder = async (req, res) => {
       where: { id: orderId },
       data: { deletedAt: new Date() }
     });
+    
+    // Notify buyer about deletion
+    const buyerUser = await prisma.user.findUnique({ where: { email: order.buyer.email } });
+    if (buyerUser && buyerUser.fcmToken) {
+      sendPushNotification(buyerUser.fcmToken, 'Order Deleted', `Your cancelled order ${order.orderNumber} has been deleted.`, { type: 'ORDER_DELETED', orderId: String(order.id) }).catch(() => {});
+    }
     return sendResponse(res, 200, true, 'Order deleted successfully');
   } catch (error) {
     return sendResponse(res, 500, false, 'Failed to delete order');

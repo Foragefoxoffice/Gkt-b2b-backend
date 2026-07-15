@@ -2,6 +2,7 @@ import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 import fs from 'fs';
 import path from 'path';
+import { sendPushNotification } from '../services/firebase.service.js';
 
 export const createDesign = async (req, res) => {
   const { code, name, categoryId, color, colorStocks, rate, gstPercent, material, availableStock } = req.body;
@@ -38,7 +39,7 @@ export const createDesign = async (req, res) => {
     }
   });
 
-  import('../socket.js').then(({ getIO, emitToRole }) => {
+  import('../socket.js').then(async ({ getIO, emitToRole }) => {
     try {
       getIO().emit('inventoryUpdated');
       emitToRole('BUYER', 'notification', {
@@ -46,6 +47,10 @@ export const createDesign = async (req, res) => {
         title: 'New Design Added',
         message: `A new design "${design.name}" (${design.code}) has been added to our catalog.`,
         data: design
+      });
+      const buyers = await prisma.user.findMany({ where: { role: { name: 'BUYER' }, fcmToken: { not: null } } });
+      buyers.forEach(b => {
+        sendPushNotification(b.fcmToken, 'New Design Added', `A new design "${design.name}" (${design.code}) has been added to our catalog.`, { type: 'NEW_DESIGN', designId: String(design.id) }).catch(() => {});
       });
     } catch (e) { }
   });
@@ -176,7 +181,7 @@ export const updateDesign = async (req, res) => {
     data
   });
 
-  import('../socket.js').then(({ emitToRole, getIO }) => {
+  import('../socket.js').then(async ({ emitToRole, getIO }) => {
     getIO().emit('inventoryUpdated');
 
     if (existing.availableStock !== updated.availableStock || existing.colorStock !== updated.colorStock) {
@@ -186,6 +191,12 @@ export const updateDesign = async (req, res) => {
         message: `Stock for design "${updated.name}" (${updated.code}) has been updated.`,
         data: updated
       });
+      try {
+        const buyers = await prisma.user.findMany({ where: { role: { name: 'BUYER' }, fcmToken: { not: null } } });
+        buyers.forEach(b => {
+          sendPushNotification(b.fcmToken, 'Stock Updated', `Stock for design "${updated.name}" (${updated.code}) has been updated.`, { type: 'STOCK_UPDATED', designId: String(updated.id) }).catch(() => {});
+        });
+      } catch(e) {}
     }
   });
 
@@ -202,8 +213,14 @@ export const deleteDesign = async (req, res) => {
     data: { deletedAt: new Date() }
   });
 
-  import('../socket.js').then(({ getIO }) => {
-    try { getIO().emit('inventoryUpdated'); } catch (e) { }
+  import('../socket.js').then(async ({ getIO }) => {
+    try { 
+      getIO().emit('inventoryUpdated'); 
+      const buyers = await prisma.user.findMany({ where: { role: { name: 'BUYER' }, fcmToken: { not: null } } });
+      buyers.forEach(b => {
+        sendPushNotification(b.fcmToken, 'Design Removed', `Design "${existing.name}" (${existing.code}) is no longer available.`, { type: 'DESIGN_DELETED', designId: String(designId) }).catch(() => {});
+      });
+    } catch (e) { }
   });
 
   return sendResponse(res, 200, true, 'Deleted');

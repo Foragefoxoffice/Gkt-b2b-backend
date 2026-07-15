@@ -3,6 +3,7 @@ import http from 'http';
 import app from './app.js';
 import prisma from './prisma/client.js';
 import { initSocket } from './socket.js';
+import { initFirebaseAdmin } from './services/firebase.service.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -19,6 +20,8 @@ async function startServer() {
     // Connect to database
     await prisma.$connect();
     console.log('✅ Connected to database via Prisma');
+
+    await initFirebaseAdmin();
 
     const server = http.createServer(app);
     initSocket(server);

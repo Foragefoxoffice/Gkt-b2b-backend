@@ -1,6 +1,7 @@
 import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
 import { emitToRole, emitToUser, getIO } from '../socket.js';
+import { sendPushNotification } from '../services/firebase.service.js';
 
 const generateRequestNumber = async (tx) => {
   const client = tx || prisma;
@@ -68,6 +69,22 @@ export const createProductRequest = async (req, res) => {
     };
     const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF'];
     adminRoles.forEach(role => emitToRole(role, 'notification', notificationPayload));
+    
+    // Notify Admins via Push Notification
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: { name: { in: adminRoles } }, fcmToken: { not: null } }
+      });
+      admins.forEach(admin => {
+        sendPushNotification(
+          admin.fcmToken,
+          'New Product Request',
+          notificationPayload.message,
+          { requestId: String(result.id), type: 'PRODUCT_REQUEST_CREATED' }
+        ).catch(() => {});
+      });
+    } catch (e) {}
+
     // Notify Buyer via Socket
     emitToUser(req.user.id, 'notification', {
       type: 'PRODUCT_REQUEST_CREATED',
@@ -75,6 +92,19 @@ export const createProductRequest = async (req, res) => {
       message: `Your product request ${result.requestNumber} has been submitted successfully for ${cart.items.length} item(s).`,
       data: result
     });
+    
+    // Notify Buyer via Push Notification
+    try {
+      const buyerUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (buyerUser && buyerUser.fcmToken) {
+        sendPushNotification(
+          buyerUser.fcmToken,
+          'Product Request Submitted',
+          `Your product request ${result.requestNumber} has been submitted successfully.`,
+          { requestId: String(result.id), type: 'PRODUCT_REQUEST_CREATED' }
+        ).catch(() => {});
+      }
+    } catch (e) {}
 
     try {
       getIO().emit('cartUpdated');
@@ -199,12 +229,21 @@ export const updateProductRequestStatus = async (req, res) => {
 
     const buyerUser = await prisma.user.findUnique({ where: { email: request.buyer.email } });
     if (buyerUser) {
+      const msg = `Your product request ${request.requestNumber} is now ${status}${loomId ? ' (Assigned to Loom)' : ''}.`;
       emitToUser(buyerUser.id, 'notification', {
         type: `PRODUCT_REQUEST_${status}`,
         title: `Request ${status.charAt(0) + status.slice(1).toLowerCase()}`,
-        message: `Your product request ${request.requestNumber} is now ${status}${loomId ? ' (Assigned to Loom)' : ''}.`,
+        message: msg,
         data: updated
       });
+      if (buyerUser.fcmToken) {
+        sendPushNotification(
+          buyerUser.fcmToken,
+          `Request ${status.charAt(0) + status.slice(1).toLowerCase()}`,
+          msg,
+          { requestId: String(request.id), type: `PRODUCT_REQUEST_${status}` }
+        ).catch(() => {});
+      }
     }
 
     try {
