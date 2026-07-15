@@ -1,6 +1,6 @@
 import prisma from '../prisma/client.js';
 import { sendResponse } from '../utils/response.js';
-import { sendPushNotification } from '../services/firebase.service.js';
+
 
 const generateDispatchNumber = async () => {
   const last = await prisma.dispatch.findFirst({ orderBy: { id: 'desc' } });
@@ -50,14 +50,6 @@ export const createDispatch = async (req, res) => {
         data: dispatch
       });
     });
-    if (buyerUser.fcmToken) {
-      sendPushNotification(
-        buyerUser.fcmToken,
-        'Order Dispatched',
-        `Your order ${order.orderNumber} has been dispatched in ${numberOfBundles} bundle(s).`,
-        { dispatchId: String(dispatch.id), orderId: String(order.id), type: 'DISPATCH_CREATED' }
-      ).catch(err => console.error('Failed to send push notification:', err));
-    }
   }
 
   return sendResponse(res, 201, true, 'Dispatch created', dispatch);
@@ -108,14 +100,6 @@ export const updateDispatchStatus = async (req, res) => {
         data: dispatch
       });
     });
-    if (buyerUser.fcmToken) {
-      sendPushNotification(
-        buyerUser.fcmToken,
-        'Dispatch Update',
-        `Dispatch for order ${dispatch.order.orderNumber} is now marked as ${status} with ${dispatch.numberOfBundles} bundle(s).`,
-        { dispatchId: String(dispatch.id), orderId: String(dispatch.orderId), type: 'DISPATCH_UPDATED' }
-      ).catch(err => console.error('Failed to send push notification:', err));
-    }
   }
 
   return sendResponse(res, 200, true, 'Dispatch status updated', dispatch);

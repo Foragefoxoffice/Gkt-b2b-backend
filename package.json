@@ -19,7 +19,6 @@
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
     "express-async-errors": "^3.1.1",
-    "firebase-admin": "^13.10.0",
     "helmet": "^8.2.0",
     "joi": "^18.2.2",
     "jsonwebtoken": "^9.0.3",
