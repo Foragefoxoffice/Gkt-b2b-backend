@@ -21,30 +21,65 @@ export const getAdminDashboard = async (req, res) => {
     const currentYear = now.getFullYear();
 
     const monthlyDataMap = {};
+    const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthName = d.toLocaleString('default', { month: 'short' });
-      monthlyDataMap[monthName] = { name: monthName, sales: 0, buyers: 0 };
+      monthlyDataMap[monthName] = { name: monthName, sales: 0, buyers: 0, orders: 0, pending: 0 };
     }
 
+    let previousMonthSales = 0;
+    let currentMonthOrdersCount = 0;
+    let previousMonthOrdersCount = 0;
+    let currentMonthPending = 0;
+    let previousMonthPending = 0;
+
     orders.forEach(o => {
+      const d = new Date(o.orderDate);
+      const isCurrentMonth = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      const isPreviousMonth = d.getMonth() === previousMonth && d.getFullYear() === previousYear;
+
+      if (isCurrentMonth) currentMonthOrdersCount++;
+      if (isPreviousMonth) previousMonthOrdersCount++;
+
+      if (o.status === 'PENDING') {
+        if (isCurrentMonth) currentMonthPending++;
+        if (isPreviousMonth) previousMonthPending++;
+      }
+
       if (o.status !== 'CANCELLED') {
         totalSales += o.grandTotal;
-        const d = new Date(o.orderDate);
-        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        if (isCurrentMonth) {
           monthlySales += o.grandTotal;
+        } else if (isPreviousMonth) {
+          previousMonthSales += o.grandTotal;
         }
 
         const monthName = d.toLocaleString('default', { month: 'short' });
         if (monthlyDataMap[monthName]) {
           monthlyDataMap[monthName].sales += o.grandTotal;
+          monthlyDataMap[monthName].orders += 1;
+          if (o.status === 'PENDING') {
+            monthlyDataMap[monthName].pending += 1;
+          }
         }
       }
     });
 
+    let currentMonthBuyersCount = 0;
+    let previousMonthBuyersCount = 0;
+
     const buyersList = await prisma.buyer.findMany({ where: { deletedAt: null } });
     buyersList.forEach(b => {
       const d = new Date(b.createdAt);
+      const isCurrentMonth = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      const isPreviousMonth = d.getMonth() === previousMonth && d.getFullYear() === previousYear;
+
+      if (isCurrentMonth) currentMonthBuyersCount++;
+      if (isPreviousMonth) previousMonthBuyersCount++;
+
       const monthName = d.toLocaleString('default', { month: 'short' });
       if (monthlyDataMap[monthName]) {
         monthlyDataMap[monthName].buyers += 1;
@@ -108,10 +143,23 @@ export const getAdminDashboard = async (req, res) => {
       { name: 'Cancelled', value: cancelledOrders },
     ];
 
+    const calculateTrend = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Number((((current - previous) / previous) * 100).toFixed(1));
+    };
+
+    const trends = {
+      orders: calculateTrend(currentMonthOrdersCount, previousMonthOrdersCount),
+      sales: calculateTrend(monthlySales, previousMonthSales),
+      buyers: calculateTrend(currentMonthBuyersCount, previousMonthBuyersCount),
+      pendingOrders: calculateTrend(currentMonthPending, previousMonthPending)
+    };
+
     return sendResponse(res, 200, true, 'Admin Dashboard', {
       kpi: {
         totalBuyers, totalOrders, pendingOrders, completedOrders,
-        totalSales, monthlySales, lowStockProducts, cancelledOrders, pendingRequests, pendingDispatches, criticalStockItems
+        totalSales, monthlySales, lowStockProducts, cancelledOrders, pendingRequests, pendingDispatches, criticalStockItems,
+        trends
       },
       charts: {
         orderStatusDistribution,

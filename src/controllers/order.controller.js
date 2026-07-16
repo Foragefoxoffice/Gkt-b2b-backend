@@ -293,21 +293,87 @@ export const getOrders = async (req, res) => {
 
   const allOrdersForStats = await prisma.order.findMany({
     where: statsWhere,
-    select: { status: true, grandTotal: true }
+    select: { status: true, grandTotal: true, createdAt: true }
   });
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+  let currentTotalOrders = 0;
+  let lastTotalOrders = 0;
+  let currentPendingOrders = 0;
+  let lastPendingOrders = 0;
+  let currentTotalAmount = 0;
+  let lastTotalAmount = 0;
+
+  const sparklineOrders = Array(7).fill(0);
+  const sparklinePending = Array(7).fill(0);
+  const sparklineAmount = Array(7).fill(0);
+
+  allOrdersForStats.forEach(o => {
+    const d = new Date(o.createdAt);
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    
+    // Monthly stats
+    if (m === currentMonth && y === currentYear) {
+      currentTotalOrders++;
+      if (o.status === 'PENDING') currentPendingOrders++;
+      if (req.user.roleName === 'BUYER') {
+        if (o.status !== 'CANCELLED') currentTotalAmount += o.grandTotal;
+      } else {
+        if (o.status === 'COMPLETED' || o.status === 'APPROVED' || o.status === 'PROCESSING') currentTotalAmount += o.grandTotal;
+      }
+    } else if (m === lastMonth && y === lastMonthYear) {
+      lastTotalOrders++;
+      if (o.status === 'PENDING') lastPendingOrders++;
+      if (req.user.roleName === 'BUYER') {
+        if (o.status !== 'CANCELLED') lastTotalAmount += o.grandTotal;
+      } else {
+        if (o.status === 'COMPLETED' || o.status === 'APPROVED' || o.status === 'PROCESSING') lastTotalAmount += o.grandTotal;
+      }
+    }
+
+    // Sparklines (last 7 days)
+    const diffTime = Math.abs(now - d);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 7) {
+      const idx = 6 - diffDays;
+      sparklineOrders[idx]++;
+      if (o.status === 'PENDING') sparklinePending[idx]++;
+      
+      if (req.user.roleName === 'BUYER') {
+        if (o.status !== 'CANCELLED') sparklineAmount[idx] += o.grandTotal;
+      } else {
+        if (o.status === 'COMPLETED' || o.status === 'APPROVED' || o.status === 'PROCESSING') sparklineAmount[idx] += o.grandTotal;
+      }
+    }
+  });
+
+  const calculateTrend = (current, last) => {
+    if (last === 0) return current > 0 ? 100 : 0;
+    return Number((((current - last) / last) * 100).toFixed(1));
+  };
 
   stats.totalOrders = allOrdersForStats.length;
   stats.pendingOrders = allOrdersForStats.filter(o => o.status === 'PENDING').length;
-
+  
   if (req.user.roleName === 'BUYER') {
-    stats.totalAmount = allOrdersForStats
-      .filter(o => o.status !== 'CANCELLED')
-      .reduce((acc, curr) => acc + curr.grandTotal, 0);
+    stats.totalAmount = allOrdersForStats.filter(o => o.status !== 'CANCELLED').reduce((acc, curr) => acc + curr.grandTotal, 0);
   } else {
-    stats.totalAmount = allOrdersForStats
-      .filter(o => o.status === 'COMPLETED' || o.status === 'APPROVED' || o.status === 'PROCESSING')
-      .reduce((acc, curr) => acc + curr.grandTotal, 0);
+    stats.totalAmount = allOrdersForStats.filter(o => o.status === 'COMPLETED' || o.status === 'APPROVED' || o.status === 'PROCESSING').reduce((acc, curr) => acc + curr.grandTotal, 0);
   }
+
+  stats.totalOrdersTrend = calculateTrend(currentTotalOrders, lastTotalOrders);
+  stats.pendingOrdersTrend = calculateTrend(currentPendingOrders, lastPendingOrders);
+  stats.totalAmountTrend = calculateTrend(currentTotalAmount, lastTotalAmount);
+
+  stats.sparklineOrders = sparklineOrders.map(val => ({ value: val }));
+  stats.sparklinePending = sparklinePending.map(val => ({ value: val }));
+  stats.sparklineAmount = sparklineAmount.map(val => ({ value: val }));
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({

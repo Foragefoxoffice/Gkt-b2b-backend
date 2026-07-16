@@ -29,8 +29,47 @@ export const getCategories = async (req, res) => {
     prisma.designcategory.count({ where })
   ]);
 
+  const allCategories = await prisma.designcategory.findMany({ where: { deletedAt: null }, select: { createdAt: true } });
+  
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+  let currentMonthCount = 0;
+  let previousMonthCount = 0;
+  const monthlyDataMap = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthName = d.toLocaleString('default', { month: 'short' });
+    monthlyDataMap[monthName] = { name: monthName, value: 0 };
+  }
+
+  allCategories.forEach(c => {
+    const d = new Date(c.createdAt);
+    if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) currentMonthCount++;
+    if (d.getMonth() === previousMonth && d.getFullYear() === previousYear) previousMonthCount++;
+    
+    const monthName = d.toLocaleString('default', { month: 'short' });
+    if (monthlyDataMap[monthName]) {
+      monthlyDataMap[monthName].value++;
+    }
+  });
+
+  const calculateTrend = (current, previous) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  };
+  
+  const stats = {
+    total: allCategories.length,
+    trend: calculateTrend(currentMonthCount, previousMonthCount),
+    sparkline: Object.values(monthlyDataMap)
+  };
+
   return sendResponse(res, 200, true, 'Categories retrieved', categories, {
-    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take)
+    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take), stats
   });
 };
 

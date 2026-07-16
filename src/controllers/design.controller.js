@@ -92,12 +92,63 @@ export const getDesigns = async (req, res) => {
     const isNew = (now - new Date(d.createdAt)) < 30 * 24 * 60 * 60 * 1000;
     const tags = [];
     if (isNew) tags.push('New Arrival');
-    // Note: Fast/Slow moving could be computed via aggregate query. Keeping it simple for now.
     return { ...d, tags };
   });
 
+  const allDesigns = await prisma.design.findMany({ where: { deletedAt: null }, select: { createdAt: true, availableStock: true, rate: true } });
+  let totalStock = 0;
+  let totalValue = 0;
+  let lowStock = 0;
+  
+  let currentMonthCount = 0;
+  let previousMonthCount = 0;
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+  
+  const monthlyDataMap = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthName = d.toLocaleString('default', { month: 'short' });
+    monthlyDataMap[monthName] = { name: monthName, value: 0 };
+  }
+
+  allDesigns.forEach(d => {
+    totalStock += (d.availableStock || 0);
+    totalValue += (d.rate || 0) * (d.availableStock || 0);
+    if ((d.availableStock || 0) < 20) {
+      lowStock++;
+    }
+
+    const date = new Date(d.createdAt);
+    if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) currentMonthCount++;
+    if (date.getMonth() === previousMonth && date.getFullYear() === previousYear) previousMonthCount++;
+    
+    const monthName = date.toLocaleString('default', { month: 'short' });
+    if (monthlyDataMap[monthName]) {
+      monthlyDataMap[monthName].value++;
+    }
+  });
+
+  const calculateTrend = (current, previous) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  };
+  
+  const stats = {
+    totalDesigns: {
+      value: allDesigns.length,
+      trend: calculateTrend(currentMonthCount, previousMonthCount),
+      sparkline: Object.values(monthlyDataMap)
+    },
+    totalStock: { value: totalStock },
+    lowStock: { value: lowStock },
+    totalValue: { value: totalValue }
+  };
+
   return sendResponse(res, 200, true, 'Designs retrieved', designsWithTags, {
-    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take)
+    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take), stats
   });
 };
 

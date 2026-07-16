@@ -40,8 +40,63 @@ export const getWeavers = async (req, res) => {
     prisma.weaver.count({ where })
   ]);
 
+  const allWeavers = await prisma.weaver.findMany({ 
+    where: { deletedAt: null }, 
+    include: { loom: true } 
+  });
+  
+  let totalLooms = 0;
+  let assignedLooms = 0;
+  
+  let currentMonthCount = 0;
+  let previousMonthCount = 0;
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+  
+  const monthlyDataMap = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthName = d.toLocaleString('default', { month: 'short' });
+    monthlyDataMap[monthName] = { name: monthName, value: 0 };
+  }
+
+  allWeavers.forEach(w => {
+    if (w.loom) {
+      totalLooms += w.loom.length;
+      assignedLooms += w.loom.filter(l => l.designId).length;
+    }
+
+    const date = new Date(w.createdAt);
+    if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) currentMonthCount++;
+    if (date.getMonth() === previousMonth && date.getFullYear() === previousYear) previousMonthCount++;
+    
+    const monthName = date.toLocaleString('default', { month: 'short' });
+    if (monthlyDataMap[monthName]) {
+      monthlyDataMap[monthName].value++;
+    }
+  });
+
+  const calculateTrend = (current, previous) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Number((((current - previous) / previous) * 100).toFixed(1));
+  };
+  
+  const stats = {
+    totalWeavers: {
+      value: allWeavers.length,
+      trend: calculateTrend(currentMonthCount, previousMonthCount),
+      sparkline: Object.values(monthlyDataMap)
+    },
+    totalLooms: { value: totalLooms },
+    assignedLooms: { value: assignedLooms },
+    availableLooms: { value: totalLooms - assignedLooms }
+  };
+
   return sendResponse(res, 200, true, 'Weavers retrieved', weavers, {
-    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take)
+    page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / take), stats
   });
 };
 
