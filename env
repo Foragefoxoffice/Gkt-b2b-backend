@@ -1,0 +1,10 @@
+PORT=5000
+DATABASE_URL="mysql://root:@localhost:3306/gkt_b2b"
+JWT_SECRET="supersecretjwtkey_please_change_in_production"
+JWT_REFRESH_SECRET="supersecretrefreshkey_please_change_in_production"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=587
+SMTP_SECURE="false"
+SMTP_USER="santhoshkathirvel007@gmail.com"
+SMTP_PASS="zbeldmbgyazaibzc"
+WHATSAPP_TOKEN="dummy_token"
