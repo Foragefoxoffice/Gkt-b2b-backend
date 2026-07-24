@@ -59,6 +59,14 @@ export const login = async (email, password) => {
 
   // OTP Verification logic for BUYER role
   if (user.role.name === 'BUYER') {
+    const buyerProfile = await prisma.buyer.findFirst({
+      where: { email: user.email }
+    });
+    
+    if (!buyerProfile || buyerProfile.deletedAt) {
+      throw { status: 404, message: 'Buyer not found' };
+    }
+
     const now = new Date();
     // Check if lastLoginAt is null or more than 72 hours ago
     const hoursSinceLastLogin = user.lastLoginAt 
@@ -137,6 +145,16 @@ export const verifyOtp = async (userId, otpCode) => {
     throw { status: 400, message: 'Invalid OTP' };
   }
 
+  if (user.role.name === 'BUYER') {
+    const buyerProfile = await prisma.buyer.findFirst({
+      where: { email: user.email }
+    });
+    
+    if (!buyerProfile || buyerProfile.deletedAt) {
+      throw { status: 404, message: 'Buyer not found' };
+    }
+  }
+
   const now = new Date();
   if (!user.otpExpiresAt || new Date(user.otpExpiresAt) < now) {
     throw { status: 400, message: 'OTP has expired' };
@@ -189,9 +207,20 @@ export const refreshToken = async (token) => {
       throw { status: 401, message: 'User not found or disabled' };
     }
 
+    if (user.role.name === 'BUYER') {
+      const buyerProfile = await prisma.buyer.findFirst({
+        where: { email: user.email }
+      });
+      
+      if (!buyerProfile || buyerProfile.deletedAt) {
+        throw { status: 404, message: 'Buyer not found' };
+      }
+    }
+
     const tokens = generateTokens(user, user.role.name);
     return tokens;
   } catch (error) {
+    if (error.status) throw error;
     throw { status: 403, message: 'Invalid or expired refresh token' };
   }
 };
@@ -204,6 +233,16 @@ export const forgotPassword = async (email) => {
 
   if (!user || user.deletedAt) {
     throw { status: 404, message: 'User with this email not found' };
+  }
+
+  if (user.role.name === 'BUYER') {
+    const buyerProfile = await prisma.buyer.findFirst({
+      where: { email: user.email }
+    });
+    
+    if (!buyerProfile || buyerProfile.deletedAt) {
+      throw { status: 404, message: 'Buyer not found' };
+    }
   }
 
   const now = new Date();
