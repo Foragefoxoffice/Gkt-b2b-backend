@@ -10,7 +10,8 @@ export const login = async (req, res) => {
     return sendResponse(res, 400, false, 'Email and password are required');
   }
 
-  const result = await authService.login(email, password);
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const result = await authService.login(email, password, ipAddress);
   
   if (result.requiresOtp) {
     return sendResponse(res, 200, true, 'OTP required', result);
@@ -32,12 +33,13 @@ export const login = async (req, res) => {
 };
 
 export const verifyOtp = async (req, res) => {
-  const { userId, otp } = req.body;
+  const { userId, otp, email } = req.body;
   if (!userId || !otp) {
     return sendResponse(res, 400, false, 'User ID and OTP are required');
   }
 
-  const result = await authService.verifyOtp(userId, otp);
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const result = await authService.verifyOtp(userId, otp, ipAddress, email);
 
   res.cookie('refreshToken', result.tokens.refreshToken, {
     httpOnly: true,

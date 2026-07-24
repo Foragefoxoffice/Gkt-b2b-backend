@@ -198,11 +198,34 @@ export const deleteBuyer = async (req, res) => {
   const buyer = await prisma.buyer.findUnique({ where: { id: buyerId } });
   if (!buyer || buyer.deletedAt) return sendResponse(res, 404, false, 'Buyer not found');
 
-  await prisma.buyer.update({
-    where: { id: buyerId },
-    data: { deletedAt: new Date() }
-  });
-  return sendResponse(res, 200, true, 'Buyer deleted');
+  try {
+    await prisma.$transaction(async (tx) => {
+      const timestamp = Date.now();
+      
+      // Soft delete the buyer and append timestamp to unique fields so they can be reused
+      await tx.buyer.update({
+        where: { id: buyerId },
+        data: { 
+          deletedAt: new Date(),
+          code: `${buyer.code}_del_${timestamp}`,
+          email: buyer.email ? `${buyer.email}_del_${timestamp}` : null
+        }
+      });
+
+      // If the buyer had an email, permanently delete the associated user account
+      if (buyer.email) {
+        const user = await tx.user.findUnique({ where: { email: buyer.email } });
+        if (user) {
+          await tx.user.delete({ where: { id: user.id } });
+        }
+      }
+    });
+
+    return sendResponse(res, 200, true, 'Buyer deleted');
+  } catch (error) {
+    console.error("Error deleting buyer:", error);
+    return sendResponse(res, 500, false, 'Failed to delete buyer');
+  }
 };
 
 export const regeneratePassword = async (req, res) => {

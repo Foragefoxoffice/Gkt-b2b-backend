@@ -42,7 +42,7 @@ const getUserResponseData = async (user) => {
   };
 };
 
-export const login = async (email, password) => {
+export const login = async (email, password, ipAddress) => {
   const user = await prisma.user.findUnique({
     where: { email },
     include: { role: true }
@@ -97,9 +97,44 @@ export const login = async (email, password) => {
         requiresOtp: true,
         user: {
           id: user.id,
-          email: user.email
+          email: user.email,
+          role: user.role.name
         }
       };
+    }
+  } else if (user.role.name === 'ADMIN' || user.role.name === 'SUPER_ADMIN') {
+    if (ipAddress) {
+      const existingLog = await prisma.userlog.findFirst({
+        where: { userId: user.id, action: 'LOGIN', ipAddress: ipAddress }
+      });
+
+      if (!existingLog) {
+        const now = new Date();
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { otpCode, otpExpiresAt }
+        });
+
+        const { sendEmailOtp } = await import('./email.service.js');
+        await sendEmailOtp(user.email, otpCode);
+
+        if (user.phone) {
+          const { sendWhatsappOtp } = await import('./whatsapp.service.js');
+          await sendWhatsappOtp(user.phone, otpCode);
+        }
+
+        return {
+          requiresOtp: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            role: user.role.name
+          }
+        };
+      }
     }
   }
 
@@ -113,7 +148,7 @@ export const login = async (email, password) => {
     data: {
       userId: user.id,
       action: 'LOGIN',
-      ipAddress: null, // Note: To get IP we would need to pass it from the controller, but this is fine for now or we can update later
+      ipAddress: ipAddress || null,
     }
   });
 
@@ -131,7 +166,7 @@ export const login = async (email, password) => {
   };
 };
 
-export const verifyOtp = async (userId, otpCode) => {
+export const verifyOtp = async (userId, otpCode, ipAddress, email) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { role: true }
@@ -143,6 +178,10 @@ export const verifyOtp = async (userId, otpCode) => {
 
   if (!user.otpCode || user.otpCode !== otpCode) {
     throw { status: 400, message: 'Invalid OTP' };
+  }
+
+  if (email && user.email !== email) {
+    throw { status: 400, message: 'Invalid email' };
   }
 
   if (user.role.name === 'BUYER') {
@@ -174,6 +213,7 @@ export const verifyOtp = async (userId, otpCode) => {
     data: {
       userId: user.id,
       action: 'LOGIN',
+      ipAddress: ipAddress || null,
     }
   });
 
