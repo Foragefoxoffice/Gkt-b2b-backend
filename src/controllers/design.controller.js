@@ -114,10 +114,14 @@ export const getDesigns = async (req, res) => {
     monthlyDataMap[monthName] = { name: monthName, value: 0 };
   }
 
+  const settingsRaw = await prisma.$queryRaw`SELECT * FROM setting WHERE \`key\` = 'lowStockThreshold'`;
+  const lowStockThresholdSetting = Array.isArray(settingsRaw) && settingsRaw.length > 0 ? settingsRaw[0] : null;
+  const lowStockThreshold = lowStockThresholdSetting ? parseInt(lowStockThresholdSetting.value) : 20;
+
   allDesigns.forEach(d => {
     totalStock += (d.availableStock || 0);
     totalValue += (d.rate || 0) * (d.availableStock || 0);
-    if ((d.availableStock || 0) < 20) {
+    if ((d.availableStock || 0) <= lowStockThreshold) {
       lowStock++;
     }
 

@@ -124,12 +124,15 @@ export const getAdminDashboard = async (req, res) => {
       }
     }
 
-    const lowStockThreshold = 10;
+    const settingsRaw = await prisma.$queryRaw`SELECT * FROM setting WHERE \`key\` = 'lowStockThreshold'`;
+    const lowStockThresholdSetting = Array.isArray(settingsRaw) && settingsRaw.length > 0 ? settingsRaw[0] : null;
+    const lowStockThreshold = lowStockThresholdSetting ? parseInt(lowStockThresholdSetting.value) : 10;
+    
     const lowStockProducts = await prisma.design.count({
       where: { availableStock: { lt: lowStockThreshold }, deletedAt: null }
     });
 
-    const criticalStockThreshold = 10;
+    const criticalStockThreshold = lowStockThreshold;
     const criticalStockItems = await prisma.design.findMany({
       where: { availableStock: { lt: criticalStockThreshold }, deletedAt: null },
       select: { id: true, name: true, code: true, availableStock: true }
